@@ -1,0 +1,40 @@
+Transliteration of
+http://www.doc.gold.ac.uk/~mas02gw/prolog_tutorial/prologpages/rules.html#ex5
+
+Here are the initial likes
+```
+commit
+  [#like liker: "john" likee: "mary"]
+  [#like liker: "john" likee: "trains"]
+  [#like liker: "peter" likee: "fast_cars"]
+```
+Here is the inference rules for more likes
+```
+match
+  [#hobby person: person1 hobby: common-hobby]
+  [#hobby person: person2 hobby: common-hobby person != person1]
+bind
+  [#like liker: person1 likee: person2]
+```
+Here are the initial hobbies
+```
+commit
+  [#hobby person: "john" hobby: "trainspotting"]
+  [#hobby person: "tim" hobby: "sailing"]
+  [#hobby person: "helen" hobby: "trainspotting"]
+  [#hobby person: "simon" hobby: "sailing"]
+```3
+Now display the likes
+```
+match
+  [#like liker likee]
+bind
+  [#div sort: "1{{liker}}_{{likee}}" text: "{{liker}} likes {{likee}}"]
+```
+Now display the hobbies
+```
+match
+  [#hobby person hobby]
+bind
+  [#div sort: "2{{person}}_{{hobby}}" text: "{{person}} has the hobby of {{hobby}}"]
+```
