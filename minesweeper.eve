@@ -42,16 +42,25 @@ commit
   board.seed := next-seed-2
   board.unplaced-mines := unplaced-mines - dec-unplaced
 ```
+Make each cell keep track of its neighbors.
+```
+match
+  [@board unplaced-mines: 0]
+  this-cell = [#cell row: this-row column: this-column]
+  i = range[from: -1, to: 2]
+  j = range[from: -1, to: 2]
+  this-neighbor = [#cell row: this-row + i column: this-column + j]
+  not(this-cell = this-neighbor)
+bind
+  this-cell.neighbor += this-neighbor
+```
 Count how many neighbors with mines each cell has. Note that this doesn't tag
 0.
 ```
 match
   [@board unplaced-mines: 0]
-  this-cell = [#cell row: this-row column: this-column not(#has-mine)]
-  i = range[from: -1, to: 2]
-  j = range[from: -1, to: 2]
-  mine-neighbor = [#cell row: this-row + i column: this-column + j #has-mine]
-  not(this-cell = mine-neighbor)
+  this-cell = [#cell not(#has-mine) neighbor: mine-neighbor]
+  mine-neighbor = [#has-mine]
 bind
   this-cell.neighbor-mines := count[given: mine-neighbor per: this-cell]
 ```
@@ -136,18 +145,13 @@ match
 commit
   cell += #revealed
 ```
-A revealed cell with no neighbor mines reveals all neighbor cells. Note how
-this uses the same neighbor pattern as the mine counting clause earlier.
-Unfortunately attempts to bind neighbor information into the database resulted
-in crashes (using up all system memory then OOM'ing).
+A revealed cell with no neighbor mines reveals all neighbor cells.
 ```
 match
   [@board unplaced-mines: 0]
   this-cell = [#cell #revealed row: this-row column: this-column
-               not(neighbor-mines) not(#has-mine)]
-  i = range[from: -1, to: 2]
-  j = range[from: -1, to: 2]
-  to-reveal = [#cell row: this-row + i column: this-column + j]
+               not(neighbor-mines) not(#has-mine)
+               neighbor: to-reveal]
 bind
   to-reveal += #revealed
 ```
@@ -188,7 +192,6 @@ commit
 ## Todo
 
  * Use random function from the standard library
- * Factor out neighbor finding when it's possible
  * Fix restart
  * Use external style sheet
  * Configuration dialog
