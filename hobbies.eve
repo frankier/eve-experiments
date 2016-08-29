@@ -23,7 +23,7 @@ commit
   [#hobby person: "tim" hobby: "sailing"]
   [#hobby person: "helen" hobby: "trainspotting"]
   [#hobby person: "simon" hobby: "sailing"]
-```3
+```
 Now display the likes
 ```
 match
