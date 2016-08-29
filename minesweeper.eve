@@ -191,6 +191,8 @@ commit
 
 ## Todo
 
+ * Marking mines/question marks - just as soon as there's a way to detect
+   right-click in Eve again
  * Use random function from the standard library
  * Fix restart
  * Use external style sheet
