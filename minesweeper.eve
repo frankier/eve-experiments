@@ -45,20 +45,21 @@ commit
 Make each cell keep track of its neighbors.
 ```
 match
-  [@board unplaced-mines: 0]
+  board = [@board unplaced-mines: 0 not(#initialised)]
   this-cell = [#cell row: this-row column: this-column]
   i = range[from: -1, to: 2]
   j = range[from: -1, to: 2]
   this-neighbor = [#cell row: this-row + i column: this-column + j]
   not(this-cell = this-neighbor)
-bind
+commit
+  board += #initialised
   this-cell.neighbor += this-neighbor
 ```
 Count how many neighbors with mines each cell has. Note that this doesn't tag
 0.
 ```
 match
-  [@board unplaced-mines: 0]
+  [@board #initialised]
   this-cell = [#cell not(#has-mine) neighbor: mine-neighbor]
   mine-neighbor = [#has-mine]
 bind
@@ -67,7 +68,7 @@ bind
 Make the revealed cells.
 ```
 match
-  [@board unplaced-mines: 0 width cell-size]
+  [@board #initialised width cell-size]
   cell = [#cell row column #revealed]
   revealed-contents =
     if cell = [#has-mine] then "x"
@@ -88,7 +89,7 @@ bind
 Make the unrevealed cells.
 ```
 match
-  board = [@board unplaced-mines: 0 width cell-size]
+  board = [@board #initialised width cell-size]
   cell = [#cell row column not(#revealed)]
 bind
   cell.elem :=
@@ -101,7 +102,7 @@ bind
 Draw the board. This could definitely benefit from a separate style sheet.
 ```
 match
-  board = [@board unplaced-mines: 0 width cell-size]
+  board = [@board #initialised unplaced-mines: 0 width cell-size]
   cell = [#cell row column elem]
   container-width = cell-size * width
   container-height = cell-size * width
@@ -148,7 +149,7 @@ commit
 A revealed cell with no neighbor mines reveals all neighbor cells.
 ```
 match
-  [@board unplaced-mines: 0]
+  [@board #initialised]
   this-cell = [#cell #revealed row: this-row column: this-column
                not(neighbor-mines) not(#has-mine)
                neighbor: to-reveal]
@@ -158,7 +159,7 @@ bind
 If a mine is revealed that's game over.
 ```
 match
-  board = [@board unplaced-mines: 0]
+  board = [@board #initialised]
   [#cell #has-mine #revealed]
 bind
   board += #game-over
@@ -167,7 +168,7 @@ bind
 If only mines are unrevealed that's a win.
 ```
 match
-  board = [@board area unplaced-mines: 0]
+  board = [@board area #initialised]
   not([#cell #has-mine #revealed])
   cells-completed = count[given: [#cell #revealed]] +
                     count[given: [#cell #has-mine]]
