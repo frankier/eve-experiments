@@ -3,7 +3,7 @@
 match
   [#session-connect]
 commit
-  [#div sort: 2class: "controls"
+  [#div sort: 2 class: "controls"
     children: [#input
       sort: 1
       value: "focus here to move"
