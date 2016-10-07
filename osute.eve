@@ -1,0 +1,138 @@
+== Draw control panel ==
+```
+match
+  [#session-connect]
+commit
+  [#div sort: 2class: "controls"
+    children: [#input
+      sort: 1
+      value: "focus here to move"
+      style: [display: "block" margin: "1em 0"]]
+    children: [#textarea
+      sort: 2
+      name: "level"]
+    children: [#button
+      sort: 3
+      name: "load"
+      text: "Load/reset"
+      style: [vertical-align: "bottom" margin: "0 1em"]]]
+```
+== Map loading ==
+```
+match
+  [#click element: [#button name: "load"]]
+  [#textarea name: "level" value: level]
+  split[text: level, by: "\n" index: y token: line]
+  split[text: line, by: "" index: x token: char]
+  tag = if char = "@" then "player"
+        else if char = "#" then "wall"
+        else if char = "$" then "box"
+        else if char = "." then "goal"
+        else "cell"
+commit
+  [tag x y]
+  [#cell x y]
+```
+== Decoding keypresses ==
+Note that is quite reusable
+```
+match
+  [#session-connect]
+  left = 37
+  up = 38
+  right = 39
+  down = 40
+commit
+  [#move-templ keycode: left  y-change:  0 x-change: -1]
+  [#move-templ keycode: up    y-change: -1 x-change:  0]
+  [#move-templ keycode: right y-change:  0 x-change:  1]
+  [#move-templ keycode: down  y-change:  1 x-change:  0]
+```
+```
+match
+  [#move-templ keycode y-change x-change]
+  [#keydown key: keycode]
+bind
+  [#move x-change y-change]
+```
+== Game logic ==
+Walking into an empty space
+```
+match
+  [#move x-change y-change]
+  player = [@player x y]
+  new-x = x + x-change
+  new-y = y + y-change
+  not([#box x: new-x y: new-y])
+  not([#wall x: new-x y: new-y])
+commit
+  player.x := new-x
+  player.y := new-y
+```
+Pushing a box
+```
+match
+  [#move y-change x-change]
+  player = [@player x y]
+  new-x = x + x-change
+  new-y = y + y-change
+  box = [#box x: new-x y: new-y]
+  new-box-x = new-x + x-change
+  new-box-y = new-y + y-change
+  not([#box x: new-box-x y: new-box-y])
+  not([#wall x: new-box-x y: new-box-y])
+commit
+  player.x := new-x
+  player.y := new-y
+  box.x := new-box-x
+  box.y := new-box-y
+```
+Win condition
+```
+match
+  box = [#box x y]
+  not([#goal x y])
+  count[given: box] = 0
+bind
+  [#won]
+```
+== Drawing ==
+Tile definitions
+```
+match
+  [#session-connect]
+commit
+  [@tiles player: "👷" box: "📦" wall: "⬛" goal:"🕳"]
+```
+Draw the board
+```
+match
+  [@tiles player: player-tile box: box-tile wall: wall-tile goal: goal-tile]
+  [@board height width]
+  [#cell x y]
+  tile = if [@player x y] then player-tile
+         else if [#wall x y] then wall-tile
+         else if [#box x y] then box-tile
+         else if [#goal x y] then goal-tile
+         else ""
+  color = if [#goal x y] then "cyan"
+            else "white"
+bind
+  [#div sort: 1 style:
+    [font-size: "24px"
+     text-align: "center"]
+    children:
+      [#div sort: y children:
+        [#div sort: x style: [color
+                              line-height: "24px"
+                              width: "24px"
+                              height: "24px"
+                              display: "inline-block"]
+         text: tile]]]
+```
+ * "A winner is you"
+ * Timer
+ * Moves
+ * Pushes
+ * Level parsing
+ * Use vectors
