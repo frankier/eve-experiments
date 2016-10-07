@@ -1,0 +1,105 @@
+= Asteroids =
+An Asteroids clone created by porting Asteroids.hs (:link:)
+
+This is not a faithful clone. The only way to control the ship is to shoot
+by clicking somewhere on the play field. This will move the ship due to
+kickback.
+
+The program starts with a chapter to set up the global state and draw
+the initial canvas followed by a the main game chapter and finishing with
+a game over screen chapter.
+
+== Global set up and boilerplate ==
+
+=== Set up global state + constants ===
+```
+match
+  [#session-connect]
+commit
+  [@world screen: "game"]
+```
+=== Set up canvas ===
+```
+match
+  [#session-connect]
+commit
+  [#div style: [
+    user-select: "none" -webkit-user-select: "none"
+    -moz-user-select: "none" 
+      background-color: "black" min-width: "550px"] children:
+    [#svg @game-window viewBox: "0 0 550 550", width: 550]]
+```
+
+== Main game ==
+This chapter is divided into sections for each type of game object:
+rocks, the player ship & player bullets. Each of these is futher
+divided into initialisation section, a control step if applicable, a
+simulation step and a draw step.
+
+=== Rocks ===
+==== Init ====
+```
+match
+  [#session-connect]
+commit
+  [#rock x: 150 y: 150 size: 45 vx: 2 vy: 6 frame: 0]
+  [#rock x: -45 y: 201 size: 45 vx: 13 vy: -8 frame: 0]
+  [#rock x: 45 y: 22 size: 25 vx: -2 vy: 8 frame: 0]
+  [#rock x: -210 y: -15 size: 30 vx: -2 vy: -8 frame: 0]
+  [#rock x: -45 y: -201 size: 25 vx: 8 vy: 2 frame: 0]
+```
+==== Simulation ====
+```
+match
+  [#time frames]
+  world = [@world screen: "game"]
+  rock = [#rock x y vx vy frame != frames]
+  new_x = rock.x + rock.vx / 60
+  adj_new_x =
+    if new_x > 550 then new_x - 550
+   else if new_x < 0 then 550 - new_x
+    else new_x
+  new_y = rock.y + rock.vy / 60
+  adj_new_y =
+    if new_y > 550 then new_y - 550
+   else if new_y < 0 then 550 - new_y
+    else new_y
+commit
+  rock.x := adj_new_x
+  rock.y := adj_new_y
+  rock.frame := frames
+```
+==== Draw ====
+```
+match
+  svg = [@game-window]
+  rock = [#rock x y size]
+bind
+  sprite = [#circle rock stroke: "orange"]
+  sprite.cx := x
+  sprite.cy := y
+  sprite.r := size
+  svg.children += sprite
+```
+=== Ship ===
+```
+```
+==== Init ====
+
+==== Control ====
+
+==== Simulation ====
+
+==== Draw ====
+
+=== Bullet ===
+
+==== Init ====
+
+==== Control ====
+
+==== Simulation ====
+
+==== Draw ====
+
+== Game over screen ==
