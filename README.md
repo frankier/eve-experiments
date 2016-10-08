@@ -3,7 +3,7 @@ preview](http://incidentalcomplexity.com/2016/08/03/july/).
 
 Currently working:
  * Minesweeper
+ * Osute (Sokoban clone)
 
 Currently broken:
- * Osute (Sokoban clone)
  * Asteroids (Mouse driven version)
