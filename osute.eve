@@ -29,77 +29,53 @@ commit
 ```
 match
   [#loading stage: 1]
-  cell = [#cell]
+  thing = [#cell]
 commit
-  cell.tag -= "cell"
+  thing += #deleted
 ```
 ```
 match
   [#loading stage: 1]
-  player = [#player]
+  thing = [#player]
 commit
-  player.tag -= "player"
+  thing += #deleted
 ```
 ```
 match
   [#loading stage: 1]
-  wall = [#wall]
+  thing = [#wall]
 commit
-  wall.tag -= "wall"
+  thing += #deleted
 ```
 ```
 match
   [#loading stage: 1]
-  box = [#box]
+  thing = [#box]
 commit
-  box.tag -= "box"
+  thing += #deleted
 ```
 ```
 match
   [#loading stage: 1]
-  goal = [#goal]
+  thing = [#goal]
 commit
-  goal.tag -= "goal"
+  thing += #deleted
 ```
 ```
 match
   loading = [#loading stage: 1]
-  not([#cell])
+  not([#cell not(#deleted)])
+  not([#player not(#deleted)])
+  not([#wall not(#deleted)])
+  not([#box not(#deleted)])
+  not([#goal not(#deleted)])
 commit
   loading.stage := 2
-```
-```
-match
-  loading = [#loading stage: 2]
-  not([#player])
-commit
-  loading.stage := 3
-```
-```
-match
-  loading = [#loading stage: 3]
-  not([#wall])
-commit
-  loading.stage := 4
-```
-```
-match
-  loading = [#loading stage: 4]
-  not([#box])
-commit
-  loading.stage := 5
-```
-```
-match
-  loading = [#loading stage: 5]
-  not([#goal])
-commit
-  loading.stage := 6
 ```
 Map loading
 ```
 match
-  loading = [#loading stage: 6]
+  loading = [#loading stage: 2]
   [#textarea name: "level" value: level]
   split[text: level, by: "\n" index: y token: line]
   split[text: line, by: "" index: x token: char]
@@ -111,7 +87,7 @@ match
 commit
   [tag x y]
   [#cell x y]
-  loading.stage := 7
+  loading.stage := 3
 ```
 == Decoding keypresses ==
 Note that is quite reusable
@@ -140,11 +116,11 @@ Walking into an empty space
 ```
 match
   [#move x-change y-change]
-  player = [#player x y]
+  player = [#player x y not(#deleted)]
   new-x = x + x-change
   new-y = y + y-change
-  not([#box x: new-x y: new-y])
-  not([#wall x: new-x y: new-y])
+  not([#box x: new-x y: new-y not(#deleted)])
+  not([#wall x: new-x y: new-y not(#deleted)])
 commit
   player.x := new-x
   player.y := new-y
@@ -153,14 +129,14 @@ Pushing a box
 ```
 match
   [#move y-change x-change]
-  player = [#player x y]
+  player = [#player x y not(#deleted)]
   new-x = x + x-change
   new-y = y + y-change
-  box = [#box x: new-x y: new-y]
+  box = [#box x: new-x y: new-y not(#deleted)]
   new-box-x = new-x + x-change
   new-box-y = new-y + y-change
-  not([#box x: new-box-x y: new-box-y])
-  not([#wall x: new-box-x y: new-box-y])
+  not([#box x: new-box-x y: new-box-y not(#deleted)])
+  not([#wall x: new-box-x y: new-box-y not(#deleted)])
 commit
   player.x := new-x
   player.y := new-y
@@ -170,8 +146,8 @@ commit
 Win condition
 ```
 match
-  box = [#box x y]
-  not([#goal x y])
+  box = [#box x y not(#deleted)]
+  not([#goal x y not(#deleted)])
   count[given: box] = 0
 bind
   [#won]
@@ -188,13 +164,13 @@ Draw the board
 ```
 match
   [@tiles player box wall goal]
-  [#cell x y]
-  tile = if [#player x y] then player
-         else if [#wall x y] then wall
-         else if [#box x y] then box
-         else if [#goal x y] then goal
+  [#cell x y not(#deleted)]
+  tile = if [#player x y not(#deleted)] then player
+         else if [#wall x y not(#deleted)] then wall
+         else if [#box x y not(#deleted)] then box
+         else if [#goal x y not(#deleted)] then goal
          else ""
-  color = if [#goal x y] then "cyan"
+  color = if [#goal x y not(#deleted)] then "cyan"
           else "white"
 bind
   [#div sort: 1 style:
@@ -214,36 +190,6 @@ match
   [#loading stage]
 bind
   [#div text: "loading {{stage}}"]
-```
-```
-match
-  [#cell]
-bind
-  [#div text: "cell"]
-```
-```
-match
-  [#player]
-bind
-  [#div text: "player"]
-```
-```
-match
-  [#wall]
-bind
-  [#div text: "wall"]
-```
-```
-match
-  [#box]
-bind
-  [#div text: "box"]
-```
-```
-match
-  [#goal]
-bind
-  [#div text: "goal"]
 ```
  * "A winner is you"
  * Timer
