@@ -1,9 +1,9 @@
-== Draw control panel ==
+== Control panel ==
 ```
 match
   [#session-connect]
 commit
-  [#div sort: 2 class: "controls"
+  [#div sort: 3 class: "controls"
     children: [#input
       sort: 1
       value: "focus here to move"
@@ -18,64 +18,10 @@ commit
       text: "Load/reset"
       style: [vertical-align: "bottom" margin-top: "1em"]]]
 ```
-== Reset/map loading ==
-Reset
+== Map loading ==
 ```
 match
   [#click element: [#button name: "load"]]
-commit
-  [#loading stage: 1]
-```
-```
-match
-  [#loading stage: 1]
-  thing = [#cell]
-commit
-  thing += #deleted
-```
-```
-match
-  [#loading stage: 1]
-  thing = [#player]
-commit
-  thing += #deleted
-```
-```
-match
-  [#loading stage: 1]
-  thing = [#wall]
-commit
-  thing += #deleted
-```
-```
-match
-  [#loading stage: 1]
-  thing = [#box]
-commit
-  thing += #deleted
-```
-```
-match
-  [#loading stage: 1]
-  thing = [#goal]
-commit
-  thing += #deleted
-```
-```
-match
-  loading = [#loading stage: 1]
-  not([#cell not(#deleted)])
-  not([#player not(#deleted)])
-  not([#wall not(#deleted)])
-  not([#box not(#deleted)])
-  not([#goal not(#deleted)])
-commit
-  loading.stage := 2
-```
-Map loading
-```
-match
-  loading = [#loading stage: 2]
   [#textarea name: "level" value: level]
   split[text: level, by: "\n" index: y token: line]
   split[text: line, by: "" index: x token: char]
@@ -87,7 +33,6 @@ match
 commit
   [tag x y]
   [#cell x y]
-  loading.stage := 3
 ```
 == Decoding keypresses ==
 Note that is quite reusable
@@ -111,44 +56,58 @@ match
 bind
   [#move x-change y-change]
 ```
+== Initialise counter ==
+```
+match
+  [#session-connect]
+commit
+  [#counter moves: 0 pushes: 0]
+```
 == Game logic ==
 Walking into an empty space
 ```
 match
+  not([#won])
   [#move x-change y-change]
-  player = [#player x y not(#deleted)]
+  player = [#player x y]
   new-x = x + x-change
   new-y = y + y-change
-  not([#box x: new-x y: new-y not(#deleted)])
-  not([#wall x: new-x y: new-y not(#deleted)])
+  not([#box x: new-x y: new-y])
+  not([#wall x: new-x y: new-y])
+  counter = [#counter]
 commit
   player.x := new-x
   player.y := new-y
+  counter.moves := counter.moves + 1
 ```
 Pushing a box
 ```
 match
+  not([#won])
   [#move y-change x-change]
-  player = [#player x y not(#deleted)]
+  player = [#player x y]
   new-x = x + x-change
   new-y = y + y-change
-  box = [#box x: new-x y: new-y not(#deleted)]
+  box = [#box x: new-x y: new-y]
   new-box-x = new-x + x-change
   new-box-y = new-y + y-change
-  not([#box x: new-box-x y: new-box-y not(#deleted)])
-  not([#wall x: new-box-x y: new-box-y not(#deleted)])
+  not([#box x: new-box-x y: new-box-y])
+  not([#wall x: new-box-x y: new-box-y])
+  counter = [#counter]
 commit
   player.x := new-x
   player.y := new-y
   box.x := new-box-x
   box.y := new-box-y
+  counter.pushes := counter.pushes + 1
 ```
 Win condition
 ```
 match
-  box = [#box x y not(#deleted)]
-  not([#goal x y not(#deleted)])
-  count[given: box] = 0
+  all-boxes = [#box]
+  [#goal x y]
+  goal-boxes = [#box x y]
+  count[given: all-boxes] = count[given: goal-boxes]
 bind
   [#won]
 ```
@@ -164,36 +123,50 @@ Draw the board
 ```
 match
   [@tiles player box wall goal]
-  [#cell x y not(#deleted)]
-  tile = if [#player x y not(#deleted)] then player
-         else if [#wall x y not(#deleted)] then wall
-         else if [#box x y not(#deleted)] then box
-         else if [#goal x y not(#deleted)] then goal
+  [#cell x y]
+  tile = if [#player x y] then player
+         else if [#wall x y] then wall
+         else if [#box x y] then box
+         else if [#goal x y] then goal
          else ""
-  color = if [#goal x y not(#deleted)] then "cyan"
+  color = if [#goal x y] then "cyan"
           else "white"
+  win-text = if [#won] then "YOU WIN!"
+             else ""
+  counter = [#counter moves pushes]
 bind
   [#div sort: 1 style:
-    [font-size: "24px"
-     text-align: "center"]
+    [text-align: "center"
+     position: "relative"]
     children:
-      [#div sort: y children:
-        [#div sort: x style: [color
-                              line-height: "24px"
-                              width: "24px"
-                              height: "24px"
-                              display: "inline-block"]
-         text: tile]]]
+      [#div sort: 1 style: [position: "absolute"
+                            left: "50%"
+                            top: "50%"
+                            font-size: "5em"
+                            transform: "translateX(-50%) translateY(-50%)"
+                            white-space: "nowrap"
+                            color: "black"
+                            text-shadow: "white -1px 1px, white -2px 2px, white -3px 3px"] text: win-text]
+    children:
+      [#div sort: 2 style:
+        [font-size: "24px"
+         display: "inline-block"
+         text-align: "left"]
+        children:
+          [#div sort: y children:
+            [#div sort: x style: [color
+                                  line-height: "24px"
+                                  width: "24px"
+                                  height: "24px"
+                                  display: "inline-block"
+                                  vertical-align: "bottom"
+                                  text-align: "center"]
+             text: tile]]]]
+  [#div sort: 2 text: "Moves: {{moves}} Pushes: {{pushes}}"]
 ```
-```
-match
-  [#loading stage]
-bind
-  [#div text: "loading {{stage}}"]
-```
- * "A winner is you"
- * Timer
- * Moves
- * Pushes
- * Level parsing
- * Use vectors
+TODO:
+ * Wall clock timer
+ * Refactor to use 2d vector add
+ * Style sheet
+ * Resetting
+ * Support maps with player or box on goal
