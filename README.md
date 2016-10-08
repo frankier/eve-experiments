@@ -8,7 +8,7 @@ Currently working (but note caveats in TODO sections):
 Currently broken:
  * Asteroids (Mouse driven version)
 
-== License ==
+## License
 
 Copyright 2016 Frankie Robertson
 

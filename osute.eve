@@ -1,4 +1,4 @@
-== Control panel ==
+## Control panel
 ```
 match
   [#session-connect]
@@ -18,7 +18,7 @@ commit
       text: "Load/reset"
       style: [vertical-align: "bottom" margin-top: "1em"]]]
 ```
-== Map loading ==
+## Map loading
 ```
 match
   [#click element: [#button name: "load"]]
@@ -34,7 +34,7 @@ commit
   [tag x y]
   [#cell x y]
 ```
-== Decoding keypresses ==
+## Decoding keypresses
 Note that is quite reusable
 ```
 match
@@ -56,14 +56,14 @@ match
 bind
   [#move x-change y-change]
 ```
-== Initialise counter ==
+## Initialise counter
 ```
 match
   [#session-connect]
 commit
   [#counter moves: 0 pushes: 0]
 ```
-== Game logic ==
+## Game logic
 Walking into an empty space
 ```
 match
@@ -111,7 +111,7 @@ match
 bind
   [#won]
 ```
-== Drawing ==
+## Drawing
 Tile definitions
 ```
 match
@@ -164,7 +164,9 @@ bind
              text: tile]]]]
   [#div sort: 2 text: "Moves: {{moves}} Pushes: {{pushes}}"]
 ```
-TODO:
+
+## To do
+
  * Wall clock timer
  * Refactor to use 2d vector add
  * Style sheet
