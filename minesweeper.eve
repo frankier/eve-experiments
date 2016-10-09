@@ -4,19 +4,17 @@
 
 Set some constants and generate the grid cells to hold the board state.
 ```
-match
-  [#session-connect]
+search
   width = 5
   height = 5
   area = width * height
   mines = 3
-  seed = floor[value: area * 0.2]
   cell-size = 30
 
-  i = range[from: 0, to: width]
-  j = range[from: 0, to: height]
+  i = range[from: 0, to: width - 1]
+  j = range[from: 0, to: height - 1]
 commit
-  [@board width height area cell-size seed mines unplaced-mines: mines]
+  [#board width height area cell-size mines unplaced-mines: mines]
   [#cell row: i column: j]
 ```
 Place the mines. This is structured as a loop and has an iterative random
@@ -24,14 +22,10 @@ number generator inlined. Random number generation in the standard library
 would significantly simplify this clause. To avoid excessive thrashing the
 other clauses in this program are guarded from running until this is complete.
 ```
-match
-  board = [@board width height area seed unplaced-mines unplaced-mines > 0]
-  noise-1 = sin[angle: (seed * 12.9898) / 360] * 43758.5453
-  noise-2 = abs[value: noise-1 - floor[value: noise-1]] // 0..1
-  next-seed-1 = floor[value: noise-2 * 15485863]
-  next-seed-2 = if next-seed-1 = seed then next-seed-1
-                else next-seed-1 + 1
-  cell-number = floor[value: noise-2 * area]
+search
+  board = [#board width height area unplaced-mines unplaced-mines > 0]
+  rnd = random[seed: unplaced-mines]
+  cell-number = floor[value: rnd * area]
   column = mod[value: cell-number by: width]
   row = floor[value: cell-number / height]
   cell = [#cell row column]
@@ -39,16 +33,16 @@ match
                  else 1
 commit
   cell += #has-mine
-  board.seed := next-seed-2
   board.unplaced-mines := unplaced-mines - dec-unplaced
+  board.rnd := rnd
 ```
 Make each cell keep track of its neighbors.
 ```
-match
-  board = [@board unplaced-mines: 0 not(#initialised)]
+search
+  board = [#board unplaced-mines: 0 not(#initialised)]
   this-cell = [#cell row: this-row column: this-column]
-  i = range[from: -1, to: 2]
-  j = range[from: -1, to: 2]
+  i = range[from: -1, to: 1]
+  j = range[from: -1, to: 1]
   this-neighbor = [#cell row: this-row + i column: this-column + j]
   not(this-cell = this-neighbor)
 commit
@@ -58,8 +52,8 @@ commit
 Count how many neighbors with mines each cell has. Note that this doesn't tag
 0.
 ```
-match
-  [@board #initialised]
+search
+  [#board #initialised]
   this-cell = [#cell not(#has-mine) neighbor: mine-neighbor]
   mine-neighbor = [#has-mine]
 bind
@@ -67,16 +61,17 @@ bind
 ```
 Make the revealed cells.
 ```
-match
-  [@board #initialised width cell-size]
-  cell = [#cell row column #revealed]
+search (@browser, @session)
+  [#board #initialised width cell-size]
+  cell = [#cell #revealed]
+  cell-div = [#div #cell-div cell]
   revealed-contents =
     if cell = [#has-mine] then "x"
     else if cell.neighbor-mines then "{{cell.neighbor-mines}}"
     else "."
-bind
-  cell.elem :=
-    [#div cell sort: row * width + column text: revealed-contents style:
+commit @browser
+  cell-div.children :=
+    [#div cell text: revealed-contents style:
      [display: "inline-block"
       width: "{{cell-size}}px"
       height: "{{cell-size}}px"
@@ -88,12 +83,13 @@ bind
 ```
 Make the unrevealed cells.
 ```
-match
-  board = [@board #initialised width cell-size]
-  cell = [#cell row column not(#revealed)]
-bind
-  cell.elem :=
-    [#button cell sort: row * width + column style:
+search (@browser, @session)
+  board = [#board #initialised width cell-size]
+  cell = [#cell not(#revealed)]
+  cell-div = [#div #cell-div cell]
+commit @browser
+  cell-div.children :=
+    [#button #cell-button cell style:
      [display: "inline-block"
       width: "{{cell-size}}px"
       height: "{{cell-size}}px"
@@ -101,9 +97,9 @@ bind
 ```
 Draw the board. This could definitely benefit from a separate style sheet.
 ```
-match
-  board = [@board #initialised unplaced-mines: 0 width cell-size]
-  cell = [#cell row column elem]
+search
+  board = [#board #initialised unplaced-mines: 0 width cell-size]
+  cell = [#cell row column]
   container-width = cell-size * width
   container-height = cell-size * width
   big-font-size = container-width / 6
@@ -112,44 +108,41 @@ match
     if board = [#won] then "YOU WIN"
     else if board = [#lost] then "GAME OVER"
     else ""
-bind
-  [#div board @container style:
+bind @browser
+  [#div style:
     [position: "relative"
      font-size: "{{big-font-size}}px"
-     text-align: "center"
-     width: "{{container-width}}px"
-     line-height: "{{container-height}}px"
-     color: "red"]
+     text-align: "center"]
     children:
       [#div sort: 0
         text: game-over-text style:
         [position: "absolute"
-         left: 0
-         top: 0
+         left: "50%"
+         top: "50%"
          z-index: 1
-         width: "{{container-width}}px"]]
+         transform: "translateX(-50%) translateY(-50%)"
+         text-shadow: "white -1px 1px, white -2px 2px, white -3px 3px"]]
+    children:
       [#div sort: 1
         style:
         [color: "black"
-         font-size: "{{font-size}}px"
-         width: "{{container-width}}px"
-         position: "absolute"
-         left: 0
-         top: 0]
+         font-size: "{{font-size}}px"]
        children:
-        [#span class: "wrap" sort: elem.sort children: elem]]
+         [#div sort: column
+          children: [#div #cell-div cell sort: row 
+                     style: [display: "inline"]]]]]
 ```
 Clicking reveals a cell.
 ```
-match
-  [#click #direct-target element: [#button cell]]
+search (@browser, @session)
+  [#click element: [#cell-button cell]]
 commit
   cell += #revealed
 ```
 A revealed cell with no neighbor mines reveals all neighbor cells.
 ```
-match
-  [@board #initialised]
+search
+  [#board #initialised]
   this-cell = [#cell #revealed row: this-row column: this-column
                not(neighbor-mines) not(#has-mine)
                neighbor: to-reveal]
@@ -158,8 +151,8 @@ bind
 ```
 If a mine is revealed that's game over.
 ```
-match
-  board = [@board #initialised]
+search
+  board = [#board #initialised]
   [#cell #has-mine #revealed]
 bind
   board += #game-over
@@ -167,8 +160,8 @@ bind
 ```
 If only mines are unrevealed that's a win.
 ```
-match
-  board = [@board area #initialised]
+search
+  board = [#board area #initialised]
   not([#cell #has-mine #revealed])
   cells-completed = count[given: [#cell #revealed]] +
                     count[given: [#cell #has-mine]]
@@ -180,8 +173,8 @@ bind
 Clicking restarts the game. This doesn't work currently and instead just
 removes everything. I think this might be a bug in Eve.
 ```
-match
-  board = [@board mines #game-over]
+search (@browser)
+  board = [#board mines #game-over]
   [#click]
   cell = [#cell]
 commit
