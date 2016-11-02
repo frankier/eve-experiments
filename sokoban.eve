@@ -1,9 +1,8 @@
-## Control panel
+## Draw control panel
 ```
-match
-  [#session-connect]
-commit
+commit @browser
   [#div sort: 3 class: "controls"
+    style: [margin: "1em 0"]
     children: [#input
       sort: 1
       value: "focus here to move"
@@ -16,12 +15,63 @@ commit
       sort: 3
       name: "load"
       text: "Load/reset"
-      style: [vertical-align: "bottom" margin-top: "1em"]]]
+      style: [vertical-align: "bottom" margin-top: "1em"]]
+    children: [#label
+      text: "ASCII mode"
+      children: [#input
+        type: "radio"
+        name: "gfx-mode"
+        value: "ascii"]]
+    children: [#label
+      text: "Unicode mode"
+      children: [#input
+        type: "radio"
+        name: "gfx-mode"
+        value: "unicode"
+        checked: true]]]
 ```
-## Map loading
+## Map loading and resetting
+### Bind load button click to do reset
 ```
-match
+search @browser @event
   [#click element: [#button name: "load"]]
+bind @event
+  [#do-reset]
+```
+### Bind clicking on won game to do reset
+```
+search @browser @event
+  [#click]
+  [#game-state state: "won"]
+bind @event
+  [#do-reset]
+```
+### Remove previous map/state
+```
+search @event @session
+  [#do-reset]
+  old = if [#cell] then [#cell]
+        if [#player] then [#player]
+        if [#wall] then [#wall]
+        if [#box] then [#box]
+        if [#goal] then [#goal]
+        if [#counter] then [#counter]
+        if [#game-state] then [#game-state]
+commit
+  old := none
+```
+### Add new counter and state
+```
+search @event @session
+  [#do-reset]
+commit
+  [#counter moves: 0 pushes: 0]
+  [#game-state state: "playing"]
+```
+### Load map from textarea
+```
+search @session @browser @event
+  [#do-reset]
   [#textarea name: "level" value: level]
   split[text: level, by: "\n" index: y token: line]
   split[text: line, by: "" index: x token: char]
@@ -34,40 +84,29 @@ commit
   [tag x y]
   [#cell x y]
 ```
-## Decoding keypresses
+## Keypress decoding
 Note that is quite reusable
+### Define keypress decoding data
 ```
-match
-  [#session-connect]
-  left = 37
-  up = 38
-  right = 39
-  down = 40
 commit
-  [#move-templ keycode: left  y-change:  0 x-change: -1]
-  [#move-templ keycode: up    y-change: -1 x-change:  0]
-  [#move-templ keycode: right y-change:  0 x-change:  1]
-  [#move-templ keycode: down  y-change:  1 x-change:  0]
+  [#move-templ keycode: 37 y-change:  0 x-change: -1]
+  [#move-templ keycode: 38 y-change: -1 x-change:  0]
+  [#move-templ keycode: 39 y-change:  0 x-change:  1]
+  [#move-templ keycode: 40 y-change:  1 x-change:  0]
 ```
+### Decode keypresses
 ```
-match
+search @session @event
   [#move-templ keycode y-change x-change]
   [#keydown key: keycode]
 bind
   [#move x-change y-change]
 ```
-## Initialise counter
-```
-match
-  [#session-connect]
-commit
-  [#counter moves: 0 pushes: 0]
-```
 ## Game logic
-Walking into an empty space
+### Walking into an empty space
 ```
-match
-  not([#won])
+search
+  [#game-state state: "playing"]
   [#move x-change y-change]
   player = [#player x y]
   new-x = x + x-change
@@ -80,10 +119,10 @@ commit
   player.y := new-y
   counter.moves := counter.moves + 1
 ```
-Pushing a box
+### Pushing a box
 ```
-match
-  not([#won])
+search
+  [#game-state state: "playing"]
   [#move y-change x-change]
   player = [#player x y]
   new-x = x + x-change
@@ -101,28 +140,36 @@ commit
   box.y := new-box-y
   counter.pushes := counter.pushes + 1
 ```
-Win condition
+### Win condition
 ```
-match
+search
+  game-state = [#game-state]
   all-boxes = [#box]
   [#goal x y]
   goal-boxes = [#box x y]
   count[given: all-boxes] = count[given: goal-boxes]
 bind
-  [#won]
+  game-state.state := "won"
 ```
 ## Drawing
-Tile definitions
+### Unicode tile definitions
 ```
-match
-  [#session-connect]
-commit
-  [@tiles player: "👷" box: "📦" wall: "⬛" goal:"🕳"]
+search @browser
+  [#input name: "gfx-mode" value: "unicode" checked]
+bind
+  [#tiles player: "👷" box: "📦" wall: "⬛" goal: "🕳"]
 ```
-Draw the board
+### Ascii tile definitions
 ```
-match
-  [@tiles player box wall goal]
+search @browser
+  [#input name: "gfx-mode" value: "ascii" checked]
+bind
+  [#tiles player: "@" box: "$" wall: "#" goal: "."]
+```
+### Draw the board
+```
+search
+  [#tiles player box wall goal]
   [#cell x y]
   tile = if [#player x y] then player
          else if [#wall x y] then wall
@@ -130,11 +177,11 @@ match
          else if [#goal x y] then goal
          else ""
   color = if [#goal x y] then "cyan"
-          else "white"
-  win-text = if [#won] then "YOU WIN!"
+          else "black"
+  win-text = if [#game-state state: "won"] then "YOU WIN!"
              else ""
   counter = [#counter moves pushes]
-bind
+bind @browser
   [#div sort: 1 style:
     [text-align: "center"
      position: "relative"]
@@ -142,11 +189,11 @@ bind
       [#div sort: 1 style: [position: "absolute"
                             left: "50%"
                             top: "50%"
-                            font-size: "5em"
+                            font-size: "3em"
                             transform: "translateX(-50%) translateY(-50%)"
                             white-space: "nowrap"
-                            color: "black"
-                            text-shadow: "white -1px 1px, white -2px 2px, white -3px 3px"] text: win-text]
+                            color: "white"
+                            text-shadow: "black -1px 1px, black -2px 2px, black -3px 3px"] text: win-text]
     children:
       [#div sort: 2 style:
         [font-size: "24px"
@@ -162,11 +209,9 @@ bind
                                   vertical-align: "bottom"
                                   text-align: "center"]
              text: tile]]]]
-  [#div sort: 2 text: "Moves: {{moves}} Pushes: {{pushes}}"]
+  [#div style: [margin: "1em 0"] sort: 2 text: "Moves: {{moves}} Pushes: {{pushes}}"]
 ```
-
 ## To do
-
  * Wall clock timer
  * Refactor to use 2d vector add
  * Style sheet
