@@ -1,0 +1,34 @@
+```
+search
+  index-call = [#function #index collection: collection-item order: this-order index: req-index]
+  index-call' = [#function #index order: other-order]
+  index-call = index-call'
+  other-order <= this-order
+  this-index = count[given: other-order]
+  this-index = req-index
+bind
+  index-fn.return := collection
+```
+```
+commit
+  [#birthday age: -2]
+  [#birthday age: 3]
+  [#birthday age: 8]
+  [#birthday age: 13]
+  [#birthday age: 18]
+  [#birthday age: 20]
+  [#birthday age: 21]
+  [#birthday age: 23]
+  [#birthday age: 30]
+  [#birthday age: 30]
+  [#birthday age: 40]
+  [#birthday age: 42]
+  [#birthday age: 60]
+  [#birthday age: 64]
+```
+```
+search
+  birthdays = [#birthday]
+  target-birthday = index[collection: birthday order: birthday.age index: 7]
+commit @browser
+  [#div text: "The 7th youngest person is {{target-birthday.age}} years old"]
