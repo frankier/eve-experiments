@@ -1,45 +1,156 @@
+```
+commit
+  [#color-templ index: 1 color: "rgb(0, 0, 255)"]
+  [#color-templ index: 2 color: "rgb(0, 128, 0)"]
+  [#color-templ index: 3 color: "rgb(255, 0, 0)"]
+  [#color-templ index: 4 color: "rgb(0, 0, 128)"]
+  [#color-templ index: 5 color: "rgb(128, 0, 0)"]
+  [#color-templ index: 6 color: "rgb(0, 128, 128)"]
+  [#color-templ index: 7 color: "rgb(128, 128, 128)"]
+  [#color-templ index: 8 color: "rgb(0, 0, 0)"]
+  [#track-key-state key: 16]
+```
+```
+search
+  [#toggle-tag on tag']
+  on.tag = tag'
+commit
+  on.tag -= tag'
+```
+```
+search
+  [#toggle-tag on tag']
+  not(on.tag = tag')
+commit
+  on.tag += tag'
+```
+Look after simulated right clicks
+```
+search @session @event
+  [#track-key-state key]
+  [#keydown key]
+commit
+  [#keypressed key]
+```
+```
+search @session @event
+  [#track-key-state key]
+  [#keyup key]
+  keypressed = [#keypressed key]
+commit
+  keypressed := none
+```
+```
+commit
+  uncover = [#click-mode name: "reveal" indicator: "🚶" | next: mark]
+  mark = [#click-mode name: "flag" indicator: "🚩" | next: uncover]
+  [#locked-click-mode mode: uncover]
+```
+```
+search
+  [#locked-click-mode mode: locked-mode]
+  other-mode = [#click-mode]
+  not(other-mode = locked-mode)
+  mode = if [#keypressed key: 16] then other-mode
+         else locked-mode
+bind
+  [#effective-click-mode mode]
+```
+```
+search @browser @event @session
+  [#game screen: "board" board: [#board mines width cell-size]]
+  num-flagged = if count[given: [#cell #flagged]] then count[given: [#cell #flagged]]
+                else 0
+  remaining-mines = mines - num-flagged
+  board-container = [#board-container]
+  status-face = if board = [#won] then "😎"
+                else if board = [#lost] then "💀"
+                else if [#click] then "😮"
+                else "🙂"
+  container-width = cell-size * width
+  [#effective-click-mode mode]
+bind @browser
+  board-container.children +=
+    [#div sort: 1 class: "status-panel" style: [min-width: "{{container-width}}px"] children:
+      [#span #unmarked-mines class: "inset meter" text: "{{remaining-mines}}"]
+      [#button #settings-button class: "outset big-btn" text: "⚙"]
+      [#button #reset-button class: "outset big-btn" text: status-face]
+      [#button #click-mode-button class: "outset big-btn" text: mode.indicator]
+      [#span #time-elapsed class: "inset meter" text: "127"]]
+```
+```
+search @session @event @browser
+  [#click element: [#settings-button]]
+  game = [#game]
+commit
+  game.screen := "settings"
+```
+```
+search @event @browser
+  [#click element: [#reset-button]]
+bind @event
+  [#restart-game]
+```
+```
+search @session @event @browser
+  [#click element: [#click-mode-button]]
+  locked-mode = [#locked-click-mode mode]
+commit
+  locked-mode.mode := mode.next
+```
 # Minesweeper
-
 ## Program
-
 Set some constants and generate the grid cells to hold the board state.
 ```
 search
-  width = 5
-  height = 5
-  area = width * height
-  mines = 3
-  cell-size = 30
-
-  i = range[from: 0, to: width - 1]
-  j = range[from: 0, to: height - 1]
+  width = 9
+  height = 9
+  mines = 10
+  cell-size = 16
 commit
-  [#board width height area cell-size mines unplaced-mines: mines]
-  [#cell row: i column: j]
+  board = [#board width height cell-size mines]
+  [#game screen: "board" rnd-cnt: 0 board]
 ```
-Place the mines. This is structured as a loop and has an iterative random
-number generator inlined. Random number generation in the standard library
-would significantly simplify this clause. To avoid excessive thrashing the
-other clauses in this program are guarded from running until this is complete.
+If there aren't any cells, generate them for the current board.
+```
+search @event @session
+  [#game board]
+  board = [#board width height]
+  row = range[from: 0, to: width - 1]
+  column = range[from: 0, to: height - 1]
+bind
+  [#cell row column]
+  board += #cells-initialised
+```
+For boards that don't have unplaced-mines, set it from mines
+```
+search @event @session
+  not([#restart-game])
+  board = [#board mines not(unplaced-mines)]
+commit
+  board.unplaced-mines := mines
+```
+Place the mines. This is structured as a loop and will mark pick an random
+unrevealed cell without a mine each iteration.
 ```
 search
-  board = [#board width height area unplaced-mines unplaced-mines > 0]
-  rnd = random[seed: unplaced-mines]
-  cell-number = floor[value: rnd * area]
-  column = mod[value: cell-number by: width]
-  row = floor[value: cell-number / height]
+  game = [#game screen: "board" rnd-cnt board]
+  board = [#board unplaced-mines unplaced-mines > 0 #started]
   cell = [#cell row column]
-  dec-unplaced = if cell = [#has-mine] then 0
-                 else 1
+  not(cell = [#has-mine])
+  not(cell = [#revealed])
+  ix = sort[value: cell direction: "up"]
+  ix = floor[value: random[seed: rnd-cnt] * count[given: cell]] + 1
 commit
   cell += #has-mine
-  board.unplaced-mines := unplaced-mines - dec-unplaced
-  board.rnd := rnd
+  game.rnd-cnt := rnd-cnt + 1
+  board.unplaced-mines := unplaced-mines - 1
 ```
 Make each cell keep track of its neighbors.
 ```
 search
-  board = [#board unplaced-mines: 0 not(#initialised)]
+  [#game board]
+  board = [#board unplaced-mines: 0 not(#initialised) #started]
   this-cell = [#cell row: this-row column: this-column]
   i = range[from: -1, to: 1]
   j = range[from: -1, to: 1]
@@ -53,144 +164,301 @@ Count how many neighbors with mines each cell has. Note that this doesn't tag
 0.
 ```
 search
-  [#board #initialised]
+  [#game board]
+  board = [#board #initialised]
   this-cell = [#cell not(#has-mine) neighbor: mine-neighbor]
   mine-neighbor = [#has-mine]
 bind
   this-cell.neighbor-mines := count[given: mine-neighbor per: this-cell]
+commit
+  board += #neighbors-initialised
 ```
 Make the revealed cells.
 ```
-search (@browser, @session)
-  [#board #initialised width cell-size]
-  cell = [#cell #revealed]
-  cell-div = [#div #cell-div cell]
+search @browser @session @event
+  not([#restart-game])
+  [#game board]
+  board = [#board width cell-size #neighbors-initialised #cells-initialised]
+  inner-cell-size = cell-size - 1
+  cell = [#cell row column #revealed]
+  row-div = [#div #row-div sort: row]
   revealed-contents =
-    if cell = [#has-mine] then "x"
+    if cell = [#has-mine] then "💣"
     else if cell.neighbor-mines then "{{cell.neighbor-mines}}"
-    else "."
-commit @browser
-  cell-div.children :=
-    [#div cell text: revealed-contents style:
+    else ""
+  background =
+    if cell = [#has-mine #clicked] then "red"
+    else "silver"
+  color = if [#color-templ index: cell.neighbor-mines color] then color
+          else "black"
+bind @browser
+  row-div.children +=
+    [#div cell text: revealed-contents sort: column class: "flat" style:
      [display: "inline-block"
       width: "{{cell-size}}px"
       height: "{{cell-size}}px"
-      border: "1px solid black"
-      background: "white"
-      font-size: "2em"
-      line-height: "{{cell-size}}px"
-      text-align: "center"]]
+      font-size: "1.7em"
+      line-height: "{{inner-cell-size}}px"
+      text-align: "center"
+      box-sizing: "border-box"
+      vertical-align: "top"
+      background color]]
 ```
 Make the unrevealed cells.
 ```
-search (@browser, @session)
-  board = [#board #initialised width cell-size]
-  cell = [#cell not(#revealed)]
-  cell-div = [#div #cell-div cell]
-commit @browser
-  cell-div.children :=
-    [#button #cell-button cell style:
+search @browser @session @event
+  not([#restart-game])
+  [#game board]
+  board = [#board width cell-size #cells-initialised]
+  inner-cell-size = cell-size - 4
+  x = if board = [#initialised] then board
+      if board = [not(#started)] then board
+  cell = [#cell row column not(#revealed)]
+  row-div = [#div #row-div sort: row]
+  text = if cell = [#flagged] then "🚩"
+         else ""
+bind @browser
+  row-div.children +=
+    [#button #cell-button cell text sort: column class: "outset" style:
      [display: "inline-block"
       width: "{{cell-size}}px"
       height: "{{cell-size}}px"
-      line-height: "{{cell-size}}px"]]
+      line-height: "{{inner-cell-size}}px"
+      font-size: "11px"
+      vertical-align: "top"
+      padding: 0]]
 ```
 Draw the board. This could definitely benefit from a separate style sheet.
 ```
-search
-  board = [#board #initialised unplaced-mines: 0 width cell-size]
-  cell = [#cell row column]
-  container-width = cell-size * width
-  container-height = cell-size * width
-  big-font-size = container-width / 6
+search @session @event
+  not([#restart-game])
+  [#game screen: "board" board: [#board width cell-size #cells-initialised]]
+  cell = [#cell row]
   font-size = cell-size * 0.5
-  game-over-text =
-    if board = [#won] then "YOU WIN"
-    else if board = [#lost] then "GAME OVER"
-    else ""
 bind @browser
-  [#div style:
-    [position: "relative"
-     font-size: "{{big-font-size}}px"
-     text-align: "center"]
+  [#div #board-container style:
+    [text-align: "center"]
     children:
-      [#div sort: 0
-        text: game-over-text style:
-        [position: "absolute"
-         left: "50%"
-         top: "50%"
-         z-index: 1
-         transform: "translateX(-50%) translateY(-50%)"
-         text-shadow: "white -1px 1px, white -2px 2px, white -3px 3px"]]
-    children:
-      [#div sort: 1
-        style:
-        [color: "black"
-         font-size: "{{font-size}}px"]
+      [#div sort: 3
+        style: [font-size: "{{font-size}}px"]
        children:
-         [#div sort: column
-          children: [#div #cell-div cell sort: row 
-                     style: [display: "inline"]]]]]
+         [#div #row-div sort: row]]]
 ```
-Clicking reveals a cell.
+## Settings screen
 ```
-search (@browser, @session)
+search
+  [#game screen: "settings" board: [#board mines width height cell-size]]
+bind @browser
+  [#div class: "settings" children:
+    [#fieldset children:
+      [#legend text: "Difficulty"]
+      [#label text: "Beginner" for: "difficulty-beginner"] [#input id: "difficulty-beginner" name: "difficulty" type: "radio"]
+      [#label text: "Intermediate" for: "mines"] [#input id: "difficulty-intermediate" name: "difficulty" type: "radio"]
+      [#label text: "Expert" for: "mines"] [#input id: "difficulty-expert" name: "difficulty" type: "radio"]
+      [#label text: "Custom" for: "mines"] [#input id: "difficulty-custom" name: "difficulty" type: "radio"]]
+    [#div class: "button-group"
+      children:
+        [#button #save-reset-button text: "New game"]
+        [#button text: "Resume"]]]
+```
+```
+search @session @browser
+  [#input id: "difficulty-custom" checked: true]
+  settings = [#div class: "settings"]
+bind @browser
+  settings.children +=
+    [#fieldset children:
+      [#legend text: "Custom"]
+      [#label text: "Width" for: "width"] [#input name: "width" type: "number" min: "1" value: width]
+      [#label text: "Height" for: "height"] [#input name: "height" type: "number" min: "1" value: height]
+      [#label text: "Mines" for: "mines"] [#input name: "mines" type: "number" min: "1" value: mines]]
+```
+Every button on the settings screen goes back to the game.
+```
+search @session @event @browser
+  game = [#game screen: "settings"]
+  [#click element: [#button]]
+commit
+  game.screen := "board"
+```
+The save buttons save all the values to the board
+```
+search @session @event @browser
+  [#game board]
+  save-button = [#save-reset-button]
+  [#click element: save-button]
+  [#input name: "mines" value: mines]
+  [#input name: "width" value: width]
+  [#input name: "height" value: height]
+commit
+  board.mines := mines
+  board.width := width
+  board.height := height
+  board.cell-size := cell-size
+```
+Clicking on a game that hasn't started yet initiates a game.
+```
+search @event @browser @session
+  [#click element: [#cell-button cell]]
+  [#game board]
+  board = [#board #cells-initialised not(#started) not(#game-over)]
+commit
+  board += #started
+```
+Clicking in reveal mode reveals a cell.
+```
+search @event @browser @session
+  [#game board]
+  board = [#board not(#game-over)]
+  [#effective-click-mode mode: [#click-mode name: "reveal"]]
   [#click element: [#cell-button cell]]
 commit
   cell += #revealed
+  cell += #clicked
+  cell -= #flagged
+```
+Clicking in flag mode flags a cell.
+```
+search @event @browser @session
+  [#game board]
+  board = [#board not(#game-over)]
+  [#effective-click-mode mode: [#click-mode name: "flag"]]
+  [#click element: [#cell-button cell]]
+bind
+  [#toggle-tag on: cell tag': "flagged"]
 ```
 A revealed cell with no neighbor mines reveals all neighbor cells.
 ```
 search
-  [#board #initialised]
+  [#game board]
+  board = [#board #neighbors-initialised]
   this-cell = [#cell #revealed row: this-row column: this-column
                not(neighbor-mines) not(#has-mine)
                neighbor: to-reveal]
 bind
   to-reveal += #revealed
+  to-reveal -= #flagged
 ```
 If a mine is revealed that's game over.
 ```
 search
-  board = [#board #initialised]
+  [#game board]
+  board = [#board #neighbors-initialised]
   [#cell #has-mine #revealed]
 bind
   board += #game-over
   board += #lost
 ```
-If only mines are unrevealed that's a win.
+The locations of the mines are revealed in lost games.
 ```
 search
-  board = [#board area #initialised]
+  [#game board: [#board #game-over #lost]]
+  cell = [#cell #has-mine]
+commit
+  cell += #revealed
+```
+If all mines are flagged that's a win
+```
+search
+  board = [#board mines #initialised]
   not([#cell #has-mine #revealed])
-  cells-completed = count[given: [#cell #revealed]] +
-                    count[given: [#cell #has-mine]]
-  cells-completed = area
+  cells-completed = count[given: [#cell #has-mine #flagged]]
+  mines = cells-completed
 bind
   board += #game-over
   board += #won
 ```
-Clicking restarts the game. This doesn't work currently and instead just
-removes everything. I think this might be a bug in Eve.
+Clicking restarts the game.
 ```
-search (@browser)
-  board = [#board mines #game-over]
+search @event @session
+  board = [#board #game-over]
   [#click]
+bind @event
+  [#restart-game]
+```
+```
+search @event @session
+  [#restart-game]
   cell = [#cell]
 commit
-  board.unplaced-mines := mines
-  cell -= #has-mine
+  cell -= #flagged
   cell -= #revealed
+  cell -= #clicked
+  cell -= #has-mine
 ```
-
+```
+search @event @session
+  [#restart-game]
+  game = [#game board]
+commit
+  board -= #game-over
+  board -= #won
+  board -= #lost
+  board -= #started
+  board -= #initialised
+  board -= #neighbors-initialised
+  board.unplaced-mines := board.mines
+```
+## CSS
+```
+commit @browser
+  [#style text:
+    ".outset {" +
+      "border: 2px solid;" +
+      "border-color: white gray gray white;" +
+      "background-color: silver;" +
+    "}" +
+    ".inset {" +
+      "border: 2px solid;" +
+      "border-color: gray white white gray;" +
+      "background-color: silver;" +
+    "}" +
+    ".flat {" +
+      "border: 1px solid gray;" +
+      "border-width: 1px 0 0 1px;" +
+      "background-color: silver;" +
+    "}" +
+    ".big-btn {" +
+      "width: 24px;" +
+      "height: 24px;" +
+      "padding: 0;" +
+      "text-align: center;" +
+      "font-size: 18px;" +
+    "}" +
+    ".meter {" +
+      "width: 40px;" +
+      "height: 24px;" +
+      "padding: 0;" +
+      "text-align: center;" +
+      "font-size: 18px;" +
+      "font-family: monospace;" +
+      "background-color: black;" +
+      "color: red;" +
+    "}" +
+    ".settings {" +
+      "display: flex;" +
+      "flex-wrap: wrap;" +
+    "}" +
+    ".settings > label {" +
+      "width: 30%;" +
+    "}" +
+    ".settings > input {" +
+      "width: 70%;" +
+    "}" +
+    ".button-group {" +
+      "width: 100%;" +
+      "display: flex;" +
+      "justify-content: space-between;" +
+    "}" +
+    ".status-panel {" +
+      "display: inline-flex;" +
+      "justify-content: space-between;" +
+    "}" +
+    ".status-panel > * {" +
+      "flex-shrink: 0;" +
+      "display: inline-block;" +
+    "}"]
+```
 ## Todo
-
- * Marking mines/question marks - just as soon as there's a way to detect
-   right-click in Eve again
- * Use random function from the standard library
- * Fix restart
  * Use external style sheet
- * Configuration dialog
- * Restart button
- * Smiley / frowny / O-face
- * Other touches to get that mid nineties look n' feel
+ * O-face
