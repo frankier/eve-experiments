@@ -6,12 +6,10 @@ may or may not be tagged #has-mine.
 ### Setup #game and #board
 ```
 search
-  width = 9
-  height = 9
-  mines = 10
+  difficulty = [#difficulty name: "Beginner" width height mines]
   cell-size = 16
 commit
-  [#game screen: "board" rnd-cnt: 0 cell-size board: [#board width height mines]]
+  [#game screen: "board" rnd-cnt: 0 cell-size board: [#board width height mines difficulty]]
 ```
 ### Setup grid of #cell entities
 If there aren't any cells, generate them for the current board.
@@ -77,7 +75,6 @@ search
   mine-neighbor = [#has-mine]
 bind
   this-cell.neighbor-mines := count[given: mine-neighbor per: this-cell]
-commit
   board += #neighbors-initialised
 ```
 ### Define number colours
@@ -386,7 +383,7 @@ bind @browser
     [#fieldset sort: 1 class: "difficulties-container" children: [#legend text: "Difficulties"]]
     [#div sort: 3 class: "button-group"
       children:
-        [#button #save-reset-button text: "New game"]
+        [#button #apply-button text: "New game"]
         [#button text: "Resume"]]]
 ```
 ### Draw difficulties
@@ -399,6 +396,30 @@ bind @browser
   container.children += [#div sort children:
     [#input difficulty id: "difficulty-{{sort}}" name: "difficulty" type: "radio"]
     [#label text: name for: "difficulty-{{sort}}"]]
+```
+### Set initial difficulty selection
+```
+search @session @browser
+  not([#difficulty-changed])
+  [#game screen: "settings" board: [difficulty]]
+  input = [#input difficulty]
+commit @browser
+  input.checked := true
+```
+### Maintain #difficulty-changed
+```
+search @event @browser
+  [#change element: [#input name: "difficulty"]]
+commit
+  [#difficulty-changed]
+```
+```
+search @session @event @browser
+  game = [#game screen: "settings"]
+  [#click element: [#button]]
+  difficulty-changed = [#difficulty-changed]
+commit
+  difficulty-changed :=
 ```
 ### Draw custom difficulty subpanel
 ```
@@ -429,7 +450,7 @@ commit
 ### Applying ready settings
 ```
 search @session @event @browser
-  [#click element: [#save-reset-button]]
+  [#click element: [#apply-button]]
   [#input difficulty checked: true]
   difficulty = [#difficulty mines width height]
   [#game board]
@@ -444,7 +465,7 @@ bind @event
 ### Applying custom settings
 ```
 search @session @event @browser
-  [#click element: [#save-reset-button]]
+  [#click element: [#apply-button]]
   [#input difficulty checked: true]
   difficulty = [#difficulty name: "Custom"]
   [#input name: "mines" value: mines]
@@ -584,4 +605,6 @@ commit @browser
 ```
 ## Todo
  * Use external style sheet
+ * Timer
+ * Best times
  * O-face
