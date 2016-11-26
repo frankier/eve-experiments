@@ -189,7 +189,7 @@ bind @browser
        children:
          [#div #row-div sort: row style: [display: "inline-block"]]]]
 ```
-### Revealed cells.
+### Draw revealed cells.
 ```
 search @browser @session @event
   not([#restart-game])
@@ -209,7 +209,7 @@ search @browser @session @event
           else "black"
 bind @browser
   row-div.children +=
-    [#div cell text: revealed-contents sort: column class: "flat" style:
+    [#div #cell-div cell text: revealed-contents sort: column class: "flat" style:
      [display: "inline-block"
       width: "{{cell-size}}px"
       height: "{{cell-size}}px"
@@ -220,7 +220,7 @@ bind @browser
       vertical-align: "top"
       background color]]
 ```
-### Unrevealed cells.
+### Draw unrevealed cells.
 ```
 search @browser @session @event
   not([#restart-game])
@@ -268,17 +268,6 @@ commit
   cell += #clicked
   cell -= #flagged
 ```
-### Flag cell
-Clicking in flag mode flags a cell.
-```
-search @event @browser @session
-  [#game board]
-  board = [#board not(#game-over)]
-  [#effective-click-mode mode: [#click-mode name: "flag"]]
-  [#click element: [#cell-button cell]]
-bind
-  [#toggle-tag on: cell tag': "flagged"]
-```
 ### Flood reveal
 A revealed cell with no neighbor mines reveals all neighbor cells.
 ```
@@ -291,6 +280,33 @@ search
 bind
   to-reveal += #revealed
   to-reveal -= #flagged
+```
+### Flag cell
+Clicking in flag mode flags a cell.
+```
+search @event @browser @session
+  [#game board]
+  board = [#board not(#game-over)]
+  [#effective-click-mode mode: [#click-mode name: "flag"]]
+  [#click element: [#cell-button cell]]
+bind
+  [#toggle-tag on: cell tag': "flagged"]
+```
+### Chording
+Clicking a revealed "number of neighbors" cell with the correct amount of flags
+reveals all unflagged adjacent cells.
+```
+search @event @browser @session
+  [#click element: [#cell-div cell]]
+  cell = [#cell neighbor: mine-neighbors]
+  mine-neighbors = [#cell #has-mine]
+  cell = [#cell neighbor: flagged-neighbor]
+  flagged-neighbor = [#cell #flagged]
+  cell = [#cell neighbor: unflagged-neighbor]
+  unflagged-neighbor = [#cell not(#flagged)]
+  count[given: mine-neighbors per: cell] = count[given: flagged-neighbor per: cell]
+commit
+  unflagged-neighbor += #revealed
 ```
 ## Game end/restart
 ### Lose condition
@@ -500,6 +516,10 @@ commit @browser
     "}" +
     // Game container
     ".board-container {" +
+      "-webkit-user-select: none;" +
+      "-ms-user-select: none;" +
+      "-moz-user-select: none;" +
+      "user-select: none;" +
       "text-align: center;" +
       "display: flex;" +
       "flex-direction: column;" +
