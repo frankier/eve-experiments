@@ -1,106 +1,9 @@
-```
-commit
-  [#color-templ index: 1 color: "rgb(0, 0, 255)"]
-  [#color-templ index: 2 color: "rgb(0, 128, 0)"]
-  [#color-templ index: 3 color: "rgb(255, 0, 0)"]
-  [#color-templ index: 4 color: "rgb(0, 0, 128)"]
-  [#color-templ index: 5 color: "rgb(128, 0, 0)"]
-  [#color-templ index: 6 color: "rgb(0, 128, 128)"]
-  [#color-templ index: 7 color: "rgb(128, 128, 128)"]
-  [#color-templ index: 8 color: "rgb(0, 0, 0)"]
-  [#track-key-state key: 16]
-```
-```
-search
-  [#toggle-tag on tag']
-  on.tag = tag'
-commit
-  on.tag -= tag'
-```
-```
-search
-  [#toggle-tag on tag']
-  not(on.tag = tag')
-commit
-  on.tag += tag'
-```
-Look after simulated right clicks
-```
-search @session @event
-  [#track-key-state key]
-  [#keydown key]
-commit
-  [#keypressed key]
-```
-```
-search @session @event
-  [#track-key-state key]
-  [#keyup key]
-  keypressed = [#keypressed key]
-commit
-  keypressed := none
-```
-```
-commit
-  uncover = [#click-mode name: "reveal" indicator: "🚶" | next: mark]
-  mark = [#click-mode name: "flag" indicator: "🚩" | next: uncover]
-  [#locked-click-mode mode: uncover]
-```
-```
-search
-  [#locked-click-mode mode: locked-mode]
-  other-mode = [#click-mode]
-  not(other-mode = locked-mode)
-  mode = if [#keypressed key: 16] then other-mode
-         else locked-mode
-bind
-  [#effective-click-mode mode]
-```
-```
-search @browser @event @session
-  [#game screen: "board" board: [#board mines width cell-size]]
-  num-flagged = if count[given: [#cell #flagged]] then count[given: [#cell #flagged]]
-                else 0
-  remaining-mines = mines - num-flagged
-  board-container = [#board-container]
-  status-face = if board = [#won] then "😎"
-                else if board = [#lost] then "💀"
-                else if [#click] then "😮"
-                else "🙂"
-  container-width = cell-size * width
-  [#effective-click-mode mode]
-bind @browser
-  board-container.children +=
-    [#div sort: 1 class: "status-panel" style: [min-width: "{{container-width}}px"] children:
-      [#span #unmarked-mines class: "inset meter" text: "{{remaining-mines}}"]
-      [#button #settings-button class: "outset big-btn" text: "⚙"]
-      [#button #reset-button class: "outset big-btn" text: status-face]
-      [#button #click-mode-button class: "outset big-btn" text: mode.indicator]
-      [#span #time-elapsed class: "inset meter" text: "127"]]
-```
-```
-search @session @event @browser
-  [#click element: [#settings-button]]
-  game = [#game]
-commit
-  game.screen := "settings"
-```
-```
-search @event @browser
-  [#click element: [#reset-button]]
-bind @event
-  [#restart-game]
-```
-```
-search @session @event @browser
-  [#click element: [#click-mode-button]]
-  locked-mode = [#locked-click-mode mode]
-commit
-  locked-mode.mode := mode.next
-```
 # Minesweeper
-## Program
-Set some constants and generate the grid cells to hold the board state.
+This is a version of [Minesweeper](http://www.minesweeper.info/wiki/Windows_Minesweeper) written in [Eve](http://witheve.com/).
+## Setup
+Here we set up a #game and #board and initialise a grid of #cell entities which
+may or may not be tagged #has-mine.
+### Setup #game and #board
 ```
 search
   width = 9
@@ -108,20 +11,21 @@ search
   mines = 10
   cell-size = 16
 commit
-  board = [#board width height cell-size mines]
-  [#game screen: "board" rnd-cnt: 0 board]
+  [#game screen: "board" rnd-cnt: 0 cell-size board: [#board width height mines]]
 ```
+### Setup grid of #cell entities
 If there aren't any cells, generate them for the current board.
 ```
 search @event @session
   [#game board]
   board = [#board width height]
-  row = range[from: 0, to: width - 1]
-  column = range[from: 0, to: height - 1]
+  row = range[from: 0, to: height - 1]
+  column = range[from: 0, to: width - 1]
 bind
   [#cell row column]
   board += #cells-initialised
 ```
+### Set unplaced-mines on new board
 For boards that don't have unplaced-mines, set it from mines
 ```
 search @event @session
@@ -130,6 +34,7 @@ search @event @session
 commit
   board.unplaced-mines := mines
 ```
+### Place mines
 Place the mines. This is structured as a loop and will mark pick an random
 unrevealed cell without a mine each iteration.
 ```
@@ -146,6 +51,7 @@ commit
   game.rnd-cnt := rnd-cnt + 1
   board.unplaced-mines := unplaced-mines - 1
 ```
+### Track neighbors
 Make each cell keep track of its neighbors.
 ```
 search
@@ -160,6 +66,7 @@ commit
   board += #initialised
   this-cell.neighbor += this-neighbor
 ```
+### Count neighbors
 Count how many neighbors with mines each cell has. Note that this doesn't tag
 0.
 ```
@@ -173,12 +80,121 @@ bind
 commit
   board += #neighbors-initialised
 ```
-Make the revealed cells.
+### Define number colours
+```
+commit
+  [#color-templ index: 1 color: "rgb(0, 0, 255)"]
+  [#color-templ index: 2 color: "rgb(0, 128, 0)"]
+  [#color-templ index: 3 color: "rgb(255, 0, 0)"]
+  [#color-templ index: 4 color: "rgb(0, 0, 128)"]
+  [#color-templ index: 5 color: "rgb(128, 0, 0)"]
+  [#color-templ index: 6 color: "rgb(0, 128, 128)"]
+  [#color-templ index: 7 color: "rgb(128, 128, 128)"]
+  [#color-templ index: 8 color: "rgb(0, 0, 0)"]
+```
+### Track shift keydown state
+```
+commit
+  [#track-key-state key: 16]
+```
+### Define difficulty settings
+```
+commit
+  [#difficulty sort: 1 width:  9 height:  9 mines: 10 name: "Beginner"]
+  [#difficulty sort: 2 width: 16 height: 16 mines: 40 name: "Intermediate"]
+  [#difficulty sort: 3 width: 30 height: 16 mines: 99 name: "Expert"]
+  [#difficulty sort: 4 name: "Custom"]
+```
+## Status and control panel
+### Drawing
+```
+search @browser @event @session
+  [#game cell-size screen: "board" board: [#board mines width]]
+  num-flagged = if count[given: [#cell #flagged]] then count[given: [#cell #flagged]]
+                else 0
+  remaining-mines = mines - num-flagged
+  board-container = [#board-container]
+  status-face = if board = [#won] then "😎"
+                else if board = [#lost] then "💀"
+                else if [#click] then "😮"
+                else "🙂"
+  container-width = cell-size * width
+  min-width = if container-width < 200 then 200
+              else container-width
+  [#effective-click-mode mode]
+bind @browser
+  board-container.children +=
+    [#div sort: 1 class: "status-panel inset" style: [padding: "5px" min-width: "{{min-width}}px" margin: "5px" margin-bottom: "0"] children:
+      [#span #unmarked-mines class: "inset meter" text: "{{remaining-mines}}"]
+      [#button #settings-button class: "outset big-btn" text: "⚙"]
+      [#button #reset-button class: "outset big-btn" text: status-face]
+      [#button #click-mode-button class: "outset big-btn" text: mode.indicator]
+      [#span #time-elapsed class: "inset meter" text: "127"]]
+```
+### Settings button
+```
+search @session @event @browser
+  [#click element: [#settings-button]]
+  game = [#game]
+commit
+  game.screen := "settings"
+```
+### Reset button
+```
+search @event @browser
+  [#click element: [#reset-button]]
+bind @event
+  [#restart-game]
+```
+### Mode button
+```
+search @session @event @browser
+  [#click element: [#click-mode-button]]
+  locked-mode = [#locked-click-mode mode]
+commit
+  locked-mode.mode := mode.next
+```
+### Game controls: Track the click mode
+```
+commit
+  uncover = [#click-mode name: "reveal" indicator: "🚶" | next: mark]
+  mark = [#click-mode name: "flag" indicator: "🚩" | next: uncover]
+  [#locked-click-mode mode: uncover]
+```
+```
+search
+  [#locked-click-mode mode: locked-mode]
+  other-mode = [#click-mode]
+  not(other-mode = locked-mode)
+  mode = if [#keypressed key: 16] then other-mode
+         else locked-mode
+bind
+  [#effective-click-mode mode]
+```
+## Grid drawing
+### Draw board container
+Draw the board.
+```
+search @session @event
+  not([#restart-game])
+  [#game cell-size screen: "board" board: [#board width #cells-initialised]]
+  cell = [#cell row]
+  font-size = cell-size * 0.5
+  container-width = cell-size * width
+bind @browser
+  [#div #board-container class: "outset board-container"
+    children:
+      [#div class: "inset" sort: 3
+        style: [font-size: "{{font-size}}px" display: "inline-block" margin: "5px" box-sizing: "content-box" width: "{{container-width}}px"]
+       children:
+         [#div #row-div sort: row style: [display: "inline-block"]]]]
+```
+### Revealed cells.
 ```
 search @browser @session @event
   not([#restart-game])
-  [#game board]
-  board = [#board width cell-size #neighbors-initialised #cells-initialised]
+  [#game board cell-size]
+  board = [#board width #neighbors-initialised #cells-initialised]
   inner-cell-size = cell-size - 1
   cell = [#cell row column #revealed]
   row-div = [#div #row-div sort: row]
@@ -204,12 +220,12 @@ bind @browser
       vertical-align: "top"
       background color]]
 ```
-Make the unrevealed cells.
+### Unrevealed cells.
 ```
 search @browser @session @event
   not([#restart-game])
-  [#game board]
-  board = [#board width cell-size #cells-initialised]
+  [#game board cell-size]
+  board = [#board width #cells-initialised]
   inner-cell-size = cell-size - 4
   x = if board = [#initialised] then board
       if board = [not(#started)] then board
@@ -228,75 +244,9 @@ bind @browser
       vertical-align: "top"
       padding: 0]]
 ```
-Draw the board. This could definitely benefit from a separate style sheet.
-```
-search @session @event
-  not([#restart-game])
-  [#game screen: "board" board: [#board width cell-size #cells-initialised]]
-  cell = [#cell row]
-  font-size = cell-size * 0.5
-bind @browser
-  [#div #board-container style:
-    [text-align: "center"]
-    children:
-      [#div sort: 3
-        style: [font-size: "{{font-size}}px"]
-       children:
-         [#div #row-div sort: row]]]
-```
-## Settings screen
-```
-search
-  [#game screen: "settings" board: [#board mines width height cell-size]]
-bind @browser
-  [#div class: "settings" children:
-    [#fieldset children:
-      [#legend text: "Difficulty"]
-      [#label text: "Beginner" for: "difficulty-beginner"] [#input id: "difficulty-beginner" name: "difficulty" type: "radio"]
-      [#label text: "Intermediate" for: "mines"] [#input id: "difficulty-intermediate" name: "difficulty" type: "radio"]
-      [#label text: "Expert" for: "mines"] [#input id: "difficulty-expert" name: "difficulty" type: "radio"]
-      [#label text: "Custom" for: "mines"] [#input id: "difficulty-custom" name: "difficulty" type: "radio"]]
-    [#div class: "button-group"
-      children:
-        [#button #save-reset-button text: "New game"]
-        [#button text: "Resume"]]]
-```
-```
-search @session @browser
-  [#input id: "difficulty-custom" checked: true]
-  settings = [#div class: "settings"]
-bind @browser
-  settings.children +=
-    [#fieldset children:
-      [#legend text: "Custom"]
-      [#label text: "Width" for: "width"] [#input name: "width" type: "number" min: "1" value: width]
-      [#label text: "Height" for: "height"] [#input name: "height" type: "number" min: "1" value: height]
-      [#label text: "Mines" for: "mines"] [#input name: "mines" type: "number" min: "1" value: mines]]
-```
-Every button on the settings screen goes back to the game.
-```
-search @session @event @browser
-  game = [#game screen: "settings"]
-  [#click element: [#button]]
-commit
-  game.screen := "board"
-```
-The save buttons save all the values to the board
-```
-search @session @event @browser
-  [#game board]
-  save-button = [#save-reset-button]
-  [#click element: save-button]
-  [#input name: "mines" value: mines]
-  [#input name: "width" value: width]
-  [#input name: "height" value: height]
-commit
-  board.mines := mines
-  board.width := width
-  board.height := height
-  board.cell-size := cell-size
-```
-Clicking on a game that hasn't started yet initiates a game.
+## Interaction with cells
+### First click
+The first click on a game initiates it. This triggers the placement of mines.
 ```
 search @event @browser @session
   [#click element: [#cell-button cell]]
@@ -305,6 +255,7 @@ search @event @browser @session
 commit
   board += #started
 ```
+### Reveal cell
 Clicking in reveal mode reveals a cell.
 ```
 search @event @browser @session
@@ -317,6 +268,7 @@ commit
   cell += #clicked
   cell -= #flagged
 ```
+### Flag cell
 Clicking in flag mode flags a cell.
 ```
 search @event @browser @session
@@ -327,6 +279,7 @@ search @event @browser @session
 bind
   [#toggle-tag on: cell tag': "flagged"]
 ```
+### Flood reveal
 A revealed cell with no neighbor mines reveals all neighbor cells.
 ```
 search
@@ -339,6 +292,8 @@ bind
   to-reveal += #revealed
   to-reveal -= #flagged
 ```
+## Game end/restart
+### Lose condition
 If a mine is revealed that's game over.
 ```
 search
@@ -349,6 +304,7 @@ bind
   board += #game-over
   board += #lost
 ```
+### On lose: show mines
 The locations of the mines are revealed in lost games.
 ```
 search
@@ -357,6 +313,7 @@ search
 commit
   cell += #revealed
 ```
+### Win condition
 If all mines are flagged that's a win
 ```
 search
@@ -368,6 +325,7 @@ bind
   board += #game-over
   board += #won
 ```
+### Clicking restarts the game
 Clicking restarts the game.
 ```
 search @event @session
@@ -376,6 +334,9 @@ search @event @session
 bind @event
   [#restart-game]
 ```
+### Restarting
+This is also triggered by clicking the restart
+button and by applying the settings.
 ```
 search @event @session
   [#restart-game]
@@ -399,10 +360,129 @@ commit
   board -= #neighbors-initialised
   board.unplaced-mines := board.mines
 ```
+## Settings screen
+### Draw settings panel
+```
+search
+  [#game screen: "settings"]
+bind @browser
+  settings = [#div class: "settings" children:
+    [#fieldset sort: 1 class: "difficulties-container" children: [#legend text: "Difficulties"]]
+    [#div sort: 3 class: "button-group"
+      children:
+        [#button #save-reset-button text: "New game"]
+        [#button text: "Resume"]]]
+```
+### Draw difficulties
+```
+search @session @browser
+  [#game screen: "settings"]
+  difficulty = [#difficulty name sort]
+  container = [#fieldset class: "difficulties-container"]
+bind @browser
+  container.children += [#div sort children:
+    [#input difficulty id: "difficulty-{{sort}}" name: "difficulty" type: "radio"]
+    [#label text: name for: "difficulty-{{sort}}"]]
+```
+### Draw custom difficulty subpanel
+```
+search @session @browser
+  [#game screen: "settings" board: [#board mines width height]]
+  [#input difficulty checked: true]
+  difficulty = [#difficulty name: "Custom"]
+  settings = [#div class: "settings"]
+bind @browser
+  settings.children +=
+    [#fieldset sort: 2 class: "custom-container" children:
+      [#legend text: "Custom"]
+      [#div children:
+        [#label text: "Width" for: "width"] [#input name: "width" type: "number" min: "1" value: width]]
+      [#div children:
+        [#label text: "Height" for: "height"] [#input name: "height" type: "number" min: "1" value: height]]
+      [#div children:
+        [#label text: "Mines" for: "mines"] [#input name: "mines" type: "number" min: "1" value: mines]]]
+```
+### Settings screen => board screen
+```
+search @session @event @browser
+  game = [#game screen: "settings"]
+  [#click element: [#button]]
+commit
+  game.screen := "board"
+```
+### Applying ready settings
+```
+search @session @event @browser
+  [#click element: [#save-reset-button]]
+  [#input difficulty checked: true]
+  difficulty = [#difficulty mines width height]
+  [#game board]
+commit
+  board.mines := mines
+  board.width := width
+  board.height := height
+  board.difficulty := difficulty
+bind @event
+  [#restart-game]
+```
+### Applying custom settings
+```
+search @session @event @browser
+  [#click element: [#save-reset-button]]
+  [#input difficulty checked: true]
+  difficulty = [#difficulty name: "Custom"]
+  [#input name: "mines" value: mines]
+  [#input name: "width" value: width]
+  [#input name: "height" value: height]
+  [#game board]
+commit
+  board.mines := mines
+  board.width := width
+  board.height := height
+  board.difficulty := difficulty
+bind @event
+  [#restart-game]
+```
+## Utilities
+The following utilities are essentially reusable and could live in a separate
+library.
+
+### Toggle tag
+```
+search
+  [#toggle-tag on tag']
+  on.tag = tag'
+commit
+  on.tag -= tag'
+```
+```
+search
+  [#toggle-tag on tag']
+  not(on.tag = tag')
+commit
+  on.tag += tag'
+```
+### Track key state
+```
+search @session @event
+  [#track-key-state key]
+  [#keydown key]
+commit
+  [#keypressed key]
+```
+```
+search @session @event
+  [#track-key-state key]
+  [#keyup key]
+  keypressed = [#keypressed key]
+commit
+  keypressed := none
+```
 ## CSS
 ```
 commit @browser
   [#style text:
+    // Generic
     ".outset {" +
       "border: 2px solid;" +
       "border-color: white gray gray white;" +
@@ -418,12 +498,25 @@ commit @browser
       "border-width: 1px 0 0 1px;" +
       "background-color: silver;" +
     "}" +
+    // Game container
+    ".board-container {" +
+      "text-align: center;" +
+      "display: flex;" +
+      "flex-direction: column;" +
+      "align-items: center;" +
+      "align-self: flex-start;" +
+    "}" +
+    ".board-container > * {" +
+      "flex-shrink: 0;" +
+    "}" +
+    // Top status
     ".big-btn {" +
       "width: 24px;" +
       "height: 24px;" +
       "padding: 0;" +
       "text-align: center;" +
       "font-size: 18px;" +
+      "color: black;" +
     "}" +
     ".meter {" +
       "width: 40px;" +
@@ -432,23 +525,8 @@ commit @browser
       "text-align: center;" +
       "font-size: 18px;" +
       "font-family: monospace;" +
-      "background-color: black;" +
+      "background-color: maroon;" +
       "color: red;" +
-    "}" +
-    ".settings {" +
-      "display: flex;" +
-      "flex-wrap: wrap;" +
-    "}" +
-    ".settings > label {" +
-      "width: 30%;" +
-    "}" +
-    ".settings > input {" +
-      "width: 70%;" +
-    "}" +
-    ".button-group {" +
-      "width: 100%;" +
-      "display: flex;" +
-      "justify-content: space-between;" +
     "}" +
     ".status-panel {" +
       "display: inline-flex;" +
@@ -457,7 +535,32 @@ commit @browser
     ".status-panel > * {" +
       "flex-shrink: 0;" +
       "display: inline-block;" +
-    "}"]
+    "}" +
+    // Setting screen
+    ".settings {" +
+      "text-align: center;" +
+    "}" +
+    ".settings > * {" +
+      "text-align: left;" +
+    "}" +
+    ".settings > fieldset {" +
+      "margin: 10px;" +
+      "display: inline-block;" +
+    "}" +
+    "fieldset.custom-container > div > * {" +
+      "display: inline-block;" +
+      "width: 4em;" +
+    "}" +
+    "fieldset.custom-container > input {" +
+      "text-align: right;" +
+    "}" +
+    ".button-group {" +
+      "width: 100%;" +
+      "display: flex;" +
+      "padding: 10px;" +
+      "justify-content: space-around;" +
+    "}"
+    ]
 ```
 ## Todo
  * Use external style sheet
