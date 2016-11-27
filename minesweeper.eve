@@ -103,7 +103,7 @@ commit
   [#difficulty sort: 4 name: "Custom"]
 ```
 ## Status and control panel
-### Drawing
+### Draw panel
 ```
 search @browser @event @session
   [#game cell-size screen: "board" board: [#board mines width]]
@@ -664,8 +664,9 @@ commit @browser
     ]
 ```
 ## Todo
- * Use external style sheet
  * Timer
  * Best times
+ * Zero-pad numbers
+ * Use external style sheet
  * O-face
  * Support right/middle click
