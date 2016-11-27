@@ -110,7 +110,7 @@ search @browser @event @session
   num-flagged = if count[given: [#cell #flagged]] then count[given: [#cell #flagged]]
                 else 0
   remaining-mines = mines - num-flagged
-  board-container = [#board-container]
+  board-container = [#div class: "board-container"]
   status-face = if board = [#won] then "😎"
                 else if board = [#lost] then "💀"
                 else if [#click] then "😮"
@@ -128,7 +128,7 @@ bind @browser
       [#button #click-mode-button class: "outset big-btn" text: mode.indicator]
       [#span #time-elapsed class: "inset meter" text: "127"]]
 ```
-### Settings button
+### Handle settings button
 ```
 search @session @event @browser
   [#click element: [#settings-button]]
@@ -136,14 +136,14 @@ search @session @event @browser
 commit
   game.screen := "settings"
 ```
-### Reset button
+### Handle reset button
 ```
 search @event @browser
   [#click element: [#reset-button]]
 bind @event
   [#restart-game]
 ```
-### Mode button
+### Handle mode button
 ```
 search @session @event @browser
   [#click element: [#click-mode-button]]
@@ -152,12 +152,16 @@ commit
   locked-mode.mode := mode.next
 ```
 ### Game controls: Track the click mode
+The current state reached by clicking the mode button is held in #locked-click
+mode.
 ```
 commit
   uncover = [#click-mode name: "reveal" indicator: "🚶" | next: mark]
   mark = [#click-mode name: "flag" indicator: "🚩" | next: uncover]
   [#locked-click-mode mode: uncover]
 ```
+#effective-click-mode is the value of #locked-click mode or the opposite value
+when shift is pressed
 ```
 search
   [#locked-click-mode mode: locked-mode]
@@ -168,32 +172,33 @@ search
 bind
   [#effective-click-mode mode]
 ```
-## Grid drawing
+## Draw 
 ### Draw board container
-Draw the board.
+Draw #div.board-container, which holds all elements when screen = "board" and
+#div.grid and a series of #div.row elements to hold the cells.
 ```
 search @session @event
   not([#restart-game])
   [#game cell-size screen: "board" board: [#board width #cells-initialised]]
   cell = [#cell row]
-  font-size = cell-size * 0.5
   container-width = cell-size * width
 bind @browser
-  [#div #board-container class: "outset board-container"
+  [#div class: "outset" class: "board-container"
     children:
-      [#div class: "inset" sort: 3
-        style: [font-size: "{{font-size}}px" display: "inline-block" margin: "5px" box-sizing: "content-box" width: "{{container-width}}px"]
+      [#div class: "inset" class: "grid" sort: 3
+       style: [width: "{{container-width}}px"]
        children:
-         [#div #row-div sort: row style: [display: "inline-block"]]]]
+         [#div class: "row" sort: row]]]
 ```
-### Draw revealed cells.
+### Draw revealed cells
+Draw the revealed cells by injecting #div.cell elements into #div.row elements.
 ```
 search @browser @session @event
   not([#restart-game])
   [#game board]
   board = [#board width #neighbors-initialised #cells-initialised]
   cell = [#cell row column #revealed]
-  row-div = [#div #row-div sort: row]
+  row-div = [#div class: "row" sort: row]
   revealed-contents =
     if cell = [#has-mine] then "💣"
     else if cell.neighbor-mines then "{{cell.neighbor-mines}}"
@@ -214,7 +219,9 @@ search @session @browser
 bind @browser
   cell-div.class += "incorrect"
 ```
-### Draw unrevealed cells.
+### Draw unrevealed cells
+Draw the unrevealed cells by injecting #button.cell elements into #div.row
+elements.
 ```
 search @browser @session @event
   not([#restart-game])
@@ -223,7 +230,7 @@ search @browser @session @event
   x = if board = [#initialised] then board
       if board = [not(#started)] then board
   cell = [#cell row column not(#revealed)]
-  row-div = [#div #row-div sort: row]
+  row-div = [#div class: "row" sort: row]
   text = if cell = [#flagged] then "🚩"
          else ""
 bind @browser
@@ -440,7 +447,8 @@ bind @browser
       [#div children:
         [#label text: "Mines" for: "mines"] [#input name: "mines" type: "number" min: "1" value: mines]]]
 ```
-### Settings screen => board screen
+### Close settings screen
+Clicking any button on the settings screen closes it.
 ```
 search @session @event @browser
   game = [#game screen: "settings"]
@@ -448,7 +456,10 @@ search @session @event @browser
 commit
   game.screen := "board"
 ```
-### Applying ready settings
+### Apply default difficulty
+Clicking the apply button on the settings screen when the selected difficulty
+has mines, width and height copies them to the current board and restarts the
+game.
 ```
 search @session @event @browser
   [#click element: [#apply-button]]
@@ -463,7 +474,10 @@ commit
 bind @event
   [#restart-game]
 ```
-### Applying custom settings
+### Apply custom difficulty
+Clicking the apply button on the settings screen when the selected difficulty
+is custom copies mines, width and height from the inputs in the custom formet
+to the current board and restarts the game.
 ```
 search @session @event @browser
   [#click element: [#apply-button]]
@@ -522,6 +536,7 @@ search
   [#game cell-size]
   btn-inner-cell-size = cell-size - 4
   div-inner-cell-size = cell-size - 1
+  grid-font-size = cell-size * 0.5
 commit @browser
   [#style text:
     // Generic
@@ -583,6 +598,15 @@ commit @browser
       "display: inline-block;" +
     "}" +
     // Grid
+    "div.grid {" +
+      "font-size: {{grid-font-size}}px;" +
+      "display: inline-block;" +
+      "margin: 5px;" +
+      "box-sizing: content-box;" +
+    "}" +
+    "div.row {" +
+      "display: inline-block;" +
+    "}" +
     "button.cell {" +
       "display: inline-block;" +
       "width: {{cell-size}}px;" +
