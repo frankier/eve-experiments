@@ -411,7 +411,7 @@ search @session @browser
   not([#difficulty-changed])
   [#game screen: "settings" board: [difficulty]]
   input = [#input difficulty]
-commit @browser
+bind @browser
   input.checked := true
 ```
 ### Maintain #difficulty-changed
