@@ -190,40 +190,36 @@ bind @browser
 ```
 search @browser @session @event
   not([#restart-game])
-  [#game board cell-size]
+  [#game board]
   board = [#board width #neighbors-initialised #cells-initialised]
-  inner-cell-size = cell-size - 1
   cell = [#cell row column #revealed]
   row-div = [#div #row-div sort: row]
   revealed-contents =
     if cell = [#has-mine] then "💣"
     else if cell.neighbor-mines then "{{cell.neighbor-mines}}"
     else ""
-  background =
-    if cell = [#has-mine #clicked] then "red"
-    else "silver"
   color = if [#color-templ index: cell.neighbor-mines color] then color
           else "black"
 bind @browser
   row-div.children +=
-    [#div #cell-div cell text: revealed-contents sort: column class: "flat" style:
-     [display: "inline-block"
-      width: "{{cell-size}}px"
-      height: "{{cell-size}}px"
-      font-size: "1.7em"
-      line-height: "{{inner-cell-size}}px"
-      text-align: "center"
-      box-sizing: "border-box"
-      vertical-align: "top"
-      background color]]
+    [#div class: "cell" class: "flat" cell text: revealed-contents sort: column style: [color]]
+```
+### Mark incorrectly revealed cells
+When game is lost, mark revealed cells with mines as incorrect.
+```
+search @session @browser
+  [#board #lost]
+  cell = [#cell #has-mine #clicked]
+  cell-div = [#div cell]
+bind @browser
+  cell-div.class += "incorrect"
 ```
 ### Draw unrevealed cells.
 ```
 search @browser @session @event
   not([#restart-game])
-  [#game board cell-size]
+  [#game board]
   board = [#board width #cells-initialised]
-  inner-cell-size = cell-size - 4
   x = if board = [#initialised] then board
       if board = [not(#started)] then board
   cell = [#cell row column not(#revealed)]
@@ -231,22 +227,26 @@ search @browser @session @event
   text = if cell = [#flagged] then "🚩"
          else ""
 bind @browser
-  row-div.children +=
-    [#button #cell-button cell text sort: column class: "outset" style:
-     [display: "inline-block"
-      width: "{{cell-size}}px"
-      height: "{{cell-size}}px"
-      line-height: "{{inner-cell-size}}px"
-      font-size: "11px"
-      vertical-align: "top"
-      padding: 0]]
+  cell-button =
+    [#button cell text class: "cell" sort: column class: "outset"]
+  row-div.children += cell-button
+```
+### Mark incorrectly flagged cells
+When game is lost, mark flagged without mines as incorrect.
+```
+search @session @browser
+  [#board #lost]
+  cell = [#cell #flagged not(#has-mine)]
+  cell-button = [#button cell]
+bind @browser
+  cell-button.class += "incorrect"
 ```
 ## Interaction with cells
 ### First click
 The first click on a game initiates it. This triggers the placement of mines.
 ```
 search @event @browser @session
-  [#click element: [#cell-button cell]]
+  [#click element: [#button cell]]
   [#game board]
   board = [#board #cells-initialised not(#started) not(#game-over)]
 commit
@@ -259,7 +259,7 @@ search @event @browser @session
   [#game board]
   board = [#board not(#game-over)]
   [#effective-click-mode mode: [#click-mode name: "reveal"]]
-  [#click element: [#cell-button cell]]
+  [#click element: [#button cell]]
 commit
   cell += #revealed
   cell += #clicked
@@ -285,7 +285,7 @@ search @event @browser @session
   [#game board]
   board = [#board not(#game-over)]
   [#effective-click-mode mode: [#click-mode name: "flag"]]
-  [#click element: [#cell-button cell]]
+  [#click element: [#button cell]]
 bind
   [#toggle-tag on: cell tag': "flagged"]
 ```
@@ -294,7 +294,7 @@ Clicking a revealed "number of neighbors" cell with the correct amount of flags
 reveals all unflagged adjacent cells.
 ```
 search @event @browser @session
-  [#click element: [#cell-div cell]]
+  [#click element: [#div cell]]
   cell = [#cell neighbor: mine-neighbors]
   mine-neighbors = [#cell #has-mine]
   cell = [#cell neighbor: flagged-neighbor]
@@ -304,6 +304,7 @@ search @event @browser @session
   count[given: mine-neighbors per: cell] = count[given: flagged-neighbor per: cell]
 commit
   unflagged-neighbor += #revealed
+  unflagged-neighbor += #clicked
 ```
 ## Game end/restart
 ### Lose condition
@@ -419,7 +420,7 @@ search @session @event @browser
   [#click element: [#button]]
   difficulty-changed = [#difficulty-changed]
 commit
-  difficulty-changed :=
+  difficulty-changed := none
 ```
 ### Draw custom difficulty subpanel
 ```
@@ -517,6 +518,10 @@ commit
 ```
 ## CSS
 ```
+search
+  [#game cell-size]
+  btn-inner-cell-size = cell-size - 4
+  div-inner-cell-size = cell-size - 1
 commit @browser
   [#style text:
     // Generic
@@ -577,6 +582,37 @@ commit @browser
       "flex-shrink: 0;" +
       "display: inline-block;" +
     "}" +
+    // Grid
+    "button.cell {" +
+      "display: inline-block;" +
+      "width: {{cell-size}}px;" +
+      "height: {{cell-size}}px;" +
+      "line-height: {{btn-inner-cell-size}}px;" +
+      "font-size: 11px;" +
+      "vertical-align: top;" +
+      "padding: 0;" +
+      "position: relative;" +
+      "font-weight: 800;" +
+    "}" +
+    "button.cell.incorrect:before {" +
+      "position: absolute;" +
+      "content: '×';" +
+      "color: red;" +
+      "font-weight: 400;" +
+    "}" +
+    "div.cell {" +
+      "display: inline-block;" +
+      "width: {{cell-size}}px;" +
+      "height: {{cell-size}}px;" +
+      "font-size: 1.7em;" +
+      "line-height: {{div-inner-cell-size}}px;" +
+      "text-align: center;" +
+      "box-sizing: border-box;" +
+      "vertical-align: top;" +
+    "}" +
+    "div.cell.incorrect {" +
+      "background: red;" +
+    "}" +
     // Setting screen
     ".settings {" +
       "text-align: center;" +
@@ -608,3 +644,4 @@ commit @browser
  * Timer
  * Best times
  * O-face
+ * Support right/middle click
