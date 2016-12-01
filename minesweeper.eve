@@ -350,13 +350,14 @@ commit
   cell += #revealed
 ```
 ### Win condition
-If all mines are flagged that's a win
+If #revealed and #has-mine are disjoint and cover all of #cell, that's a win.
 ```
 search
-  board = [#board mines #initialised]
+  board = [#board width height #initialised not(#game-over)]
   not([#cell #has-mine #revealed])
-  cells-completed = count[given: [#cell #has-mine #flagged]]
-  mines = cells-completed
+  cells-completed = count[given: [#cell #revealed]] +
+                    count[given: [#cell #has-mine]]
+  cells-completed = width * height
 bind
   board += #game-over
   board += #won
