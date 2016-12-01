@@ -9,7 +9,7 @@ search
   difficulty = [#difficulty name: "Beginner" width height mines]
   cell-size = 16
 commit
-  [#game screen: "board" rnd-cnt: 0 cell-size board: [#board width height mines difficulty]]
+  [#game screen: "board" rnd-cnt: 0 cell-size board: [#board width height mines difficulty elapsed: 0]]
 ```
 ### Setup grid of #cell entities
 If there aren't any cells, generate them for the current board.
@@ -106,7 +106,7 @@ commit
 ### Draw panel
 ```
 search @browser @event @session
-  [#game cell-size screen: "board" board: [#board mines width]]
+  [#game cell-size screen: "board" board: [#board mines width elapsed]]
   num-flagged = if count[given: [#cell #flagged]] then count[given: [#cell #flagged]]
                 else 0
   remaining-mines = mines - num-flagged
@@ -126,7 +126,7 @@ bind @browser
       [#button #settings-button class: "outset big-btn" text: "⚙"]
       [#button #reset-button class: "outset big-btn" text: status-face]
       [#button #click-mode-button class: "outset big-btn" text: mode.indicator]
-      [#span #time-elapsed class: "inset meter" text: "127"]]
+      [#span #time-elapsed class: "inset meter" text: elapsed]]
 ```
 ### Handle settings button
 ```
@@ -250,14 +250,29 @@ bind @browser
 ```
 ## Interaction with cells
 ### First click
-The first click on a game initiates it. This triggers the placement of mines.
+The first click on a game initiates it. This records the current timestamp as
+the start timestamp and triggers the placement of mines.
 ```
 search @event @browser @session
   [#click element: [#button cell]]
   [#game board]
   board = [#board #cells-initialised not(#started) not(#game-over)]
+  [#time timestamp]
 commit
   board += #started
+  board.start-timestamp := timestamp
+```
+### Time
+Here we keep track of the number of seconds elapsed since the game started.
+```
+search @event @browser @session
+  board = [#board start-timestamp not(#game-over)]
+  [#time timestamp: current-timestamp]
+  elapsed = floor[value: (current-timestamp - start-timestamp) / 1000 + 0.5]
+  saturated-elapsed = if elapsed <= 999 then elapsed
+                      else 999
+commit
+  board.elapsed := saturated-elapsed
 ```
 ### Reveal cell
 Clicking in reveal mode reveals a cell.
@@ -380,6 +395,8 @@ commit
   board -= #initialised
   board -= #neighbors-initialised
   board.unplaced-mines := board.mines
+  board.start-timestamp := none
+  board.elapsed := 0
 ```
 ## Settings screen
 ### Draw settings panel
@@ -664,7 +681,6 @@ commit @browser
     ]
 ```
 ## Todo
- * Timer
  * Best times
  * Zero-pad numbers
  * Use external style sheet
