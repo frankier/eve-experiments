@@ -1,105 +1,165 @@
-= Asteroids =
-An Asteroids clone created by porting Asteroids.hs (:link:)
+# Asteroids
 
-This is not a faithful clone. The only way to control the ship is to shoot
-by clicking somewhere on the play field. This will move the ship due to
-kickback.
+An Asteroids clone created by porting Asteroids.hs from here
+https://functional-programming.it.jyu.fi/downloads/AsteroidsFinal.hs
 
-The program starts with a chapter to set up the global state and draw
-the initial canvas followed by a the main game chapter and finishing with
-a game over screen chapter.
+This is not a faithful clone of the original asteroids. The only way to control
+the ship is to shoot by clicking somewhere on the play field. This will move
+the ship due to kickback.
 
-== Global set up and boilerplate ==
-
-=== Set up global state + constants ===
+## Init
 ```
-match
-  [#session-connect]
 commit
-  [@world screen: "game"]
+  [#rock x: 150 y: 150 size: 45 vx: 2 vy: 6]
+  [#rock x: -45 y: 201 size: 45 vx: 13 vy: -8]
+  [#rock x: 45 y: 22 size: 25 vx: -2 vy: 8]
+  [#rock x: -210 y: -15 size: 30 vx: -2 vy: -8]
+  [#rock x: -45 y: -201 size: 25 vx: 8 vy: 2]
+  [#ship x: 0 y: 0 vx: 0 vy: 5]
+  [#world screen: "game" frames: 0]
 ```
-=== Set up canvas ===
+## Tag moving objects as such
 ```
-match
-  [#session-connect]
+search
+  moving = if rock = [#rock] then rock
+           if ship = [#ship] then ship
+           if bullet = [#bullet] then bullet
+bind
+  moving += #moving
+```
+## Move stuff
+```
+search @system @session
+  [#time frames: next-frames]
+  world = [#world screen: "game" frames]
+  next-frames != frames
+  moving = [#moving x y vx vy]
+  new-x = moving.x + moving.vx / 60
+  adj-new-x =
+    if new-x > 550 then new-x - 550
+   else if new-x < 0 then 550 - new-x
+    else new-x
+  new-y = moving.y + moving.vy / 60
+  adj-new-y =
+    if new-y > 550 then new-y - 550
+   else if new-y < 0 then 550 - new-y
+    else new-y
 commit
+  moving.x := adj-new-x
+  moving.y := adj-new-y
+  world.frames := next-frames
+```
+## Draw stuff
+```
+search
+  (e, cx, cy, r, stroke) = if e = [#rock x y size] then (e, x, y, size, "orange")
+                           if e = [#ship x y] then (e, x, y, 10, "red")
+                           if e = [#bullet x y] then (e, x, y, 2, "red")
+bind @browser
   [#div style: [
     user-select: "none" -webkit-user-select: "none"
     -moz-user-select: "none" 
       background-color: "black" min-width: "550px"] children:
-    [#svg @game-window viewBox: "0 0 550 550", width: 550]]
+    [#svg #game-window viewBox: "0 0 550 550", width: 550 children:
+      [#circle e stroke cx cy r fill-opacity: 0]]]
 ```
-
-== Main game ==
-This chapter is divided into sections for each type of game object:
-rocks, the player ship & player bullets. Each of these is futher
-divided into initialisation section, a control step if applicable, a
-simulation step and a draw step.
-
-=== Rocks ===
-==== Init ====
+## Firing bullets
 ```
-match
-  [#session-connect]
-commit
-  [#rock x: 150 y: 150 size: 45 vx: 2 vy: 6 frame: 0]
-  [#rock x: -45 y: 201 size: 45 vx: 13 vy: -8 frame: 0]
-  [#rock x: 45 y: 22 size: 25 vx: -2 vy: 8 frame: 0]
-  [#rock x: -210 y: -15 size: 30 vx: -2 vy: -8 frame: 0]
-  [#rock x: -45 y: -201 size: 25 vx: 8 vy: 2 frame: 0]
-```
-==== Simulation ====
-```
-match
+search @browser @event @session @system
+  [#world screen: "game"]
+  [#click element: [#game-window] x: cx y: cy]
   [#time frames]
-  world = [@world screen: "game"]
-  rock = [#rock x y vx vy frame != frames]
-  new_x = rock.x + rock.vx / 60
-  adj_new_x =
-    if new_x > 550 then new_x - 550
-   else if new_x < 0 then 550 - new_x
-    else new_x
-  new_y = rock.y + rock.vy / 60
-  adj_new_y =
-    if new_y > 550 then new_y - 550
-   else if new_y < 0 then 550 - new_y
-    else new_y
+  ship = [#ship x: sx y: sy]
+  mag = pow[value: pow[value: (cx - sx) by: 2] +
+                   pow[value: (cy - sy) by: 2]
+            by: 0.5]
+  dvx = (cx - sx) / mag
+  dvy = (cy - sy) / mag
 commit
-  rock.x := adj_new_x
-  rock.y := adj_new_y
-  rock.frame := frames
+  [#bullet x: sx y: sy vx: 150 * dvx vy: 150 * dvy born: frames]
+  ship.vx := ship.vx - 50 * dvx
+  ship.vy := ship.vy - 50 * dvy
 ```
-==== Draw ====
+## Remove old bullets
 ```
-match
-  svg = [@game-window]
-  rock = [#rock x y size]
+search @system @session
+  [#time frames]
+  bullet = [#bullet born]
+  age = frames - born
+  age > 60 * 5
+commit
+  bullet := none
+```
+## Tag entities colliding with a rock
+```
+search
+  rock = [#rock x: rx y: ry size]
+  colliding = if bullet = [#bullet] then bullet
+              if ship = [#ship] then ship
+  dist = pow[value: pow[value: colliding.x - rx by: 2] +
+                    pow[value: colliding.y - ry by: 2]
+             by: 0.5]
+  dist < size
 bind
-  sprite = [#circle rock stroke: "orange"]
-  sprite.cx := x
-  sprite.cy := y
-  sprite.r := size
-  svg.children += sprite
+  colliding.colliding-with := rock
 ```
-=== Ship ===
+## Bullet and rock colliding destroys both splits rock
 ```
+search
+  bullet = [#bullet colliding-with: rock]
+  rock = [#rock]
+commit
+  bullet := none
+  rock := none
 ```
-==== Init ====
+## Large rocks split in two when shot
+```
+search
+  bullet = [#bullet colliding-with: rock]
+  rock = [#rock size x y vx vy]
+  size > 7
+  pi = 3.14159265359
+commit
+  [#rock size: size / 2 x y
+         vx: vx * cos[radians: pi / 3] - vy * sin[radians: pi / 3]
+         vy: vx * sin[radians: pi / 3] + vy * cos[radians: pi / 3]]
+  [#rock size: size / 2 x y
+         vx: vx * cos[radians: 0 - pi / 3] - vy * sin[radians: 0 - pi / 3]
+         vy: vx * sin[radians: 0 - pi / 3] + vy * cos[radians: 0 - pi / 3]]
+```
+## Rock beats ship
+```
+search
+  ship = [#ship colliding-with: rock]
+  rock = [#rock]
+  world = [#world]
+commit
+  world.screen := "game-over"
+```
+## Game over screen ==
+```
+search @session @browser
+  game-window = [#game-window]
+  world = [#world screen: "game-over"]
+bind @browser
+  game-window.children +=
+    [#text x: "50%" y: "50%"
+      alignment-baseline: "middle" text-anchor: "middle" text: "GAME OVER" fill: "white" style: [font-size: "36px"]]
+```
+# Exercises
 
-==== Control ====
+## Exercises 
+You can try completing the exercises from here:
+https://functional-programming.it.jyu.fi/pages/ProjectAsteroids.md#ImprovedAsteroids
 
-==== Simulation ====
+## Additional exercises
 
-==== Draw ====
+Extensions of above exercises:
+ * Add a win condition
+ * Make the UFO shoot bullets that can kill the ship and break rocks
 
-=== Bullet ===
-
-==== Init ====
-
-==== Control ====
-
-==== Simulation ====
-
-==== Draw ====
-
-== Game over screen ==
+Make a more loyal asteroids clone:
+ * Add keyboard controls (rotate and shoot)
+ * Add thrusters
+ * Add warp
+ * Add scoring

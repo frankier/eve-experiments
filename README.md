@@ -4,8 +4,6 @@ preview](http://incidentalcomplexity.com/2016/08/03/july/).
 Currently working (but note caveats in TODO sections):
  * Minesweeper
  * Sokoban
-
-Currently broken:
  * Asteroids (Mouse driven version)
 
 ## License
