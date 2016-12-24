@@ -136,7 +136,7 @@ search
 commit
   world.screen := "game-over"
 ```
-## Game over screen ==
+## Game over screen
 ```
 search @session @browser
   game-window = [#game-window]
@@ -163,3 +163,4 @@ Make a more loyal asteroids clone:
  * Add thrusters
  * Add warp
  * Add scoring
+
