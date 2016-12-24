@@ -178,7 +178,6 @@ Draw #div.board-container, which holds all elements when screen = "board" and
 #div.grid and a series of #div.row elements to hold the cells.
 ```
 search @session @event
-  not([#restart-game])
   [#game cell-size screen: "board" board: [#board width #cells-initialised]]
   cell = [#cell row]
   container-width = cell-size * width
@@ -194,7 +193,6 @@ bind @browser
 Draw the revealed cells by injecting #div.cell elements into #div.row elements.
 ```
 search @browser @session @event
-  not([#restart-game])
   [#game board]
   board = [#board width #neighbors-initialised #cells-initialised]
   cell = [#cell row column #revealed]
@@ -224,7 +222,6 @@ Draw the unrevealed cells by injecting #button.cell elements into #div.row
 elements.
 ```
 search @browser @session @event
-  not([#restart-game])
   [#game board]
   board = [#board width #cells-initialised]
   x = if board = [#initialised] then board
@@ -388,6 +385,7 @@ commit
 search @event @session
   [#restart-game]
   game = [#game board]
+  board = [#board mines]
 commit
   board -= #game-over
   board -= #won
@@ -395,7 +393,7 @@ commit
   board -= #started
   board -= #initialised
   board -= #neighbors-initialised
-  board.unplaced-mines := board.mines
+  board.unplaced-mines := mines
   board.start-timestamp := none
   board.elapsed := 0
 ```
@@ -426,26 +424,11 @@ bind @browser
 ### Set initial difficulty selection
 ```
 search @session @browser
-  not([#difficulty-changed])
   [#game screen: "settings" board: [difficulty]]
-  input = [#input difficulty]
+  input = if [#input checked: true] then [#input checked: true]
+          else [#input difficulty]
 bind @browser
   input.checked := true
-```
-### Maintain #difficulty-changed
-```
-search @event @browser
-  [#change element: [#input name: "difficulty"]]
-commit
-  [#difficulty-changed]
-```
-```
-search @session @event @browser
-  game = [#game screen: "settings"]
-  [#click element: [#button]]
-  difficulty-changed = [#difficulty-changed]
-commit
-  difficulty-changed := none
 ```
 ### Draw custom difficulty subpanel
 ```
